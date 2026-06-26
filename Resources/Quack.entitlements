@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- No App Sandbox: sandboxing blocks DDC over IOKit and cross-app
+         Accessibility window moving. This is why Quack ships as a direct,
+         notarized DMG rather than via the Mac App Store. -->
+
+    <!-- Hardened runtime is enabled via codesign flags, not an entitlement.
+         These exceptions keep DDC/AX/event-tap usage working under it. -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+</dict>
+</plist>

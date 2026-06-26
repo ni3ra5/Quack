@@ -1,0 +1,11 @@
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# Assembled app bundle / DMG output
+build/
+
+# macOS
+.DS_Store
+*.xcuserstate
