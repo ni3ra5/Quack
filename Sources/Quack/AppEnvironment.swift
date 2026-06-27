@@ -132,6 +132,25 @@ final class AppEnvironment: ObservableObject {
         quackSound.play(sound)
     }
 
+    /// Shows a sample "join now" toast so the user can confirm reminders appear
+    /// (independent of whether a real meeting is currently due).
+    func previewToast() {
+        let url = URL(string: "https://meet.google.com/abc-defg-hij")
+        let now = Date()
+        let f = DateFormatter(); f.dateFormat = "h:mm a"
+        toasts.show(ToastItem(
+            title: "Preview meeting",
+            relativeText: "now",
+            timeRange: "\(f.string(from: now)) – \(f.string(from: now.addingTimeInterval(1800)))",
+            colorHex: nil,
+            joinURL: url,
+            provider: MeetingProvider(url: url),
+            joinable: true,
+            isStart: true
+        ), dismissAfter: nil)   // mirror the real join-now toast: stays until dismissed
+        quackSound.play(NotificationSound.from(settingsStore.settings.notificationSound))
+    }
+
     /// Re-reads the calendar now (e.g. when the menu opens) so the list is never
     /// showing stale/empty data.
     func refreshCalendarNow() {

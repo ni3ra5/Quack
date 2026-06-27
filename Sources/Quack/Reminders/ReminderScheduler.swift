@@ -19,6 +19,7 @@ final class ReminderScheduler: ManagedService {
 
     private var cancellables: Set<AnyCancellable> = []
     private var pollTimer: Timer?
+    private var nextTimer: Timer?   // one-shot, fires exactly at the next reminder instant
     private var fired: Set<String> = []   // reminder identifiers already shown
     private var active = false
 
@@ -57,6 +58,8 @@ final class ReminderScheduler: ManagedService {
         cancellables.removeAll()
         pollTimer?.invalidate()
         pollTimer = nil
+        nextTimer?.invalidate()
+        nextTimer = nil
         fired.removeAll()
     }
 
@@ -95,23 +98,78 @@ final class ReminderScheduler: ManagedService {
                 sound.play(NotificationSound.from(settings.settings.notificationSound))
             }
         }
+        scheduleNext(now: now)
+    }
+
+    /// Schedules a precise one-shot timer for the soonest not-yet-fired reminder
+    /// instant, so toasts fire on time instead of waiting up to a full poll
+    /// interval. The 15s poll remains as a safety net (sleep/wake, missed fires).
+    private func scheduleNext(now: Date) {
+        nextTimer?.invalidate()
+        nextTimer = nil
+
+        var soonest: Date?
+        func consider(_ date: Date) {
+            guard date > now else { return }
+            soonest = min(soonest ?? date, date)
+        }
+        for meeting in store.upcoming where !meeting.isAllDay {
+            for lead in leads where !fired.contains(leadID(meeting, lead)) {
+                consider(meeting.start.addingTimeInterval(-Double(lead) * 60))
+            }
+            if !fired.contains(startID(meeting)) { consider(meeting.start) }
+        }
+        guard let target = soonest else { return }
+
+        // +0.2s so the timer fires just past the instant (now >= start holds).
+        let interval = max(0.2, target.timeIntervalSince(now) + 0.2)
+        let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.check() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        nextTimer = timer
     }
 
     private func showReminder(_ meeting: MeetingEvent, leadMinutes: Int) {
         Log.reminders.log("advance reminder: \(meeting.title, privacy: .public) in \(leadMinutes)m")
+        let url = MeetingURLParser.joinURL(for: meeting)
+        // Only the final 1-minute heads-up offers Join — earlier ones (20/10/5)
+        // are plain notifications that auto-dismiss.
+        let joinable = leadMinutes <= 1
         toasts.show(ToastItem(
-            title: meeting.title, subtitle: "in \(leadMinutes) min",
+            title: meeting.title,
+            relativeText: joinable ? "in 1 min · join now" : "in \(leadMinutes) min",
+            timeRange: Self.timeRange(meeting.start, meeting.end),
             colorHex: meeting.calendarColorHex,
-            joinURL: MeetingURLParser.joinURL(for: meeting), isStart: false
-        ), dismissAfter: 8)
+            joinURL: url,
+            provider: MeetingProvider(url: url),
+            joinable: joinable,
+            isStart: false
+        ), dismissAfter: joinable ? nil : 8)   // joinable stays; notifications auto-dismiss
     }
 
     private func showStart(_ meeting: MeetingEvent) {
         Log.reminders.log("start reminder: \(meeting.title, privacy: .public)")
+        let url = MeetingURLParser.joinURL(for: meeting)
         toasts.show(ToastItem(
-            title: meeting.title, subtitle: "Starting now",
+            title: meeting.title,
+            relativeText: "now",
+            timeRange: Self.timeRange(meeting.start, meeting.end),
             colorHex: meeting.calendarColorHex,
-            joinURL: MeetingURLParser.joinURL(for: meeting), isStart: true
-        ), dismissAfter: 25)
+            joinURL: url,
+            provider: MeetingProvider(url: url),
+            joinable: true,
+            isStart: true
+        ), dismissAfter: nil)   // stays until the user joins or dismisses
+    }
+
+    /// "4:22 – 5:07 PM" — the AM/PM marker is dropped from the start time when
+    /// both ends share it, matching how calendars render a time range.
+    private static func timeRange(_ start: Date, _ end: Date) -> String {
+        let period = DateFormatter(); period.dateFormat = "a"
+        let samePeriod = period.string(from: start) == period.string(from: end)
+        let startFmt = DateFormatter(); startFmt.dateFormat = samePeriod ? "h:mm" : "h:mm a"
+        let endFmt = DateFormatter(); endFmt.dateFormat = "h:mm a"
+        return "\(startFmt.string(from: start)) – \(endFmt.string(from: end))"
     }
 }
