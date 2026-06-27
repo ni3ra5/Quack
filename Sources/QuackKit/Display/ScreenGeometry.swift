@@ -177,7 +177,8 @@ public enum ScreenGeometry {
         }
         switch arrow {
         case .up:    return isFilling(f, work) ? adjacent(.up) : .fill
-        case .down:  return isSmall(f, work) ? adjacent(.down) : .small
+        // Down moves straight to the screen below (no "make smaller" step).
+        case .down:  return adjacent(.down)
         case .left:  return isAligned(f, work, side: .left) ? adjacent(.left) : .snap(.left)
         case .right: return isAligned(f, work, side: .right) ? adjacent(.right) : .snap(.right)
         }

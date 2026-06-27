@@ -168,11 +168,15 @@ import CoreGraphics
         #expect(ScreenGeometry.keyOutcome(arrow: .left, windowFrame: leftHalf, work: work, source: right, screens: screens) == .move(screenID: "left"))
     }
 
-    @Test func keyDownSmallThenNoMonitorBelow() {
-        let small = ScreenGeometry.smallRect(of: work)
-        #expect(ScreenGeometry.keyOutcome(arrow: .down, windowFrame: small, work: work, source: mac, screens: [mac, above]) == .none)
+    @Test func keyDownMovesToScreenBelow() {
+        let below = ScreenInfo(id: "below", frame: CGRect(x: 0, y: 800, width: 1000, height: 800))
         let big = work
-        #expect(ScreenGeometry.keyOutcome(arrow: .down, windowFrame: big, work: work, source: mac, screens: [mac]) == .small)
+        // No monitor below → nothing happens (no "make smaller" step).
+        #expect(ScreenGeometry.keyOutcome(arrow: .down, windowFrame: big, work: work, source: mac, screens: [mac]) == .none)
+        // Monitor below → move straight there, regardless of current size.
+        #expect(ScreenGeometry.keyOutcome(arrow: .down, windowFrame: big, work: work, source: mac, screens: [mac, below]) == .move(screenID: "below"))
+        let small = ScreenGeometry.smallRect(of: work)
+        #expect(ScreenGeometry.keyOutcome(arrow: .down, windowFrame: small, work: work, source: mac, screens: [mac, below]) == .move(screenID: "below"))
     }
 
     @Test func adjacentRequiresAxisDominance() {

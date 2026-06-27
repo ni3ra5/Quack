@@ -93,7 +93,10 @@ enum WindowMover {
             // Carry the current state onto the new monitor.
             switch arrow {
             case .up:    animate(window: window, from: frame, to: targetWork)
-            case .down:  animate(window: window, from: frame, to: ScreenGeometry.smallRect(of: targetWork))
+            // Down just relocates the window to the screen below, preserving size
+            // and relative position.
+            case .down:  animate(window: window, from: frame,
+                                  to: ScreenGeometry.destinationFrame(windowFrame: frame, from: source, to: target))
             case .left:  animate(window: window, from: frame, to: snapDestination(window: window, side: .left, work: targetWork))
             case .right: animate(window: window, from: frame, to: snapDestination(window: window, side: .right, work: targetWork))
             }
