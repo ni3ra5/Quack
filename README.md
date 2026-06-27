@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Resources/AppIcon-source.png" alt="Quack app icon" width="128" height="128">
+</p>
+
 # Quack 🦆
 
 A native macOS menu-bar utility. Lives in the menu bar (no Dock icon), shows
