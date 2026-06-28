@@ -1,182 +1,162 @@
 <p align="center">
-  <img src="Resources/AppIcon-source.png" alt="Quack app icon" width="128" height="128">
+  <img src="Resources/AppIcon-source.png" alt="Quack" width="128" height="128">
 </p>
 
-# Quack 🦆
+<h1 align="center">Quack 🦆</h1>
 
-A native macOS menu-bar utility. Lives in the menu bar (no Dock icon), shows
-your next meeting with a live countdown, fires click-to-join reminders, and
-bundles two display utilities — cursor-based external-monitor brightness and a
-title-bar swipe to fling a window to another monitor.
+<p align="center"><em>All shortcuts in one app. Quack Quack!</em></p>
 
-Every feature is individually toggleable. Services start **only** when their
-toggle is on, so if you only want the brightness feature you never see a
-Calendar or Notifications prompt.
+<p align="center">
+  <img alt="Platform" src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple">
+  <img alt="Swift" src="https://img.shields.io/badge/Swift-5.9-orange?logo=swift">
+  <img alt="Build" src="https://img.shields.io/badge/build-SwiftPM-blue">
+  <img alt="Sandbox" src="https://img.shields.io/badge/sandbox-none-lightgrey">
+</p>
 
-## Features
+A native macOS menu-bar utility that bundles the little power-tools you'd
+otherwise install five apps for: meeting countdowns & click-to-join reminders,
+external-monitor brightness on the F1/F2 keys, window management by keyboard and
+trackpad, pinch-to-quit on Dock icons, and a CPU temperature readout.
 
-| Feature | What it does | Permission |
-|---|---|---|
-| **Menu-bar countdown** | Next/in-progress meeting + live `· 5m` countdown | — |
-| **Calendar** | Reads events via EventKit. Manage which calendars/accounts sync (toggle individually or whole accounts) | Calendar |
-| **Reminders** | Local notifications at configurable lead times, with a **Join** button that opens Zoom/Meet/Teams links | Notifications |
-| **External brightness** | The Mac brightness keys (F1/F2) control whichever external display the cursor is on, over DDC/CI | Accessibility¹ (Apple Silicon) |
-| **Window swipe** | Two-finger trackpad swipe over a window's title bar flings it to the next monitor (either direction) | Accessibility |
+Lives in the menu bar (no Dock icon). Every feature is individually toggleable,
+and services start **only** when their toggle is on.
 
-¹ The brightness slider and "dim inactive display" work without Accessibility;
-only intercepting the F1/F2 keys needs it (to consume the key so the built-in
-display doesn't also change).
+---
 
-## Requirements
+## ✨ Features
 
-- macOS 13 Ventura or later
-- Apple Silicon for the brightness feature (DDC/CI via `IOAVService`). Intel
-  Macs run everything else; brightness reports "unavailable on this Mac".
-- An external display that supports **DDC/CI** for brightness control. Many do;
-  some monitors and most USB-C hubs do not. The settings panel shows
-  "DDC supported / not supported" per display.
+| | Feature | What it does | Permission |
+|---|---|---|---|
+| 🦆 | **Menu bar** | Separate duck (opens Settings), a meeting countdown with a colored bar, and a CPU-temperature item | — |
+| 📅 | **Calendar** | Next/in-progress meeting + live countdown; events in the dropdown; pick which accounts/calendars sync | Calendar |
+| 🔔 | **Reminders** | Toast alerts at 20/10/5 min, plus **Join** alerts at 1 min and on-time (Zoom/Meet/Teams) — separate sounds each | Calendar |
+| ☀️ | **External brightness** | F1/F2 control whichever external display the cursor is on, over DDC — with software dimming **below** the hardware floor | Accessibility¹ |
+| 🪟 | **Window shortcuts** | ⌘⌥ + arrows: fill / move to the screen below / left & right halves (press again → adjacent monitor) | Accessibility |
+| ✋ | **Window swipe** | Two-finger title-bar swipe: ↑ fullscreen, ↓ minimize, ←→ snap to half | Accessibility |
+| 🔥 | **Dock pinch-to-quit** | Pinch-in on an app's Dock icon to quit it | Accessibility |
+| 🌡️ | **CPU temperature** | Flame + live temperature (°C/°F) read from the Mac's sensors, à la `hot` | — |
 
-## Install
+¹ The brightness slider works without Accessibility; only intercepting F1/F2
+needs it (to consume the key so the built-in display doesn't also change).
 
-Builds with **Swift Package Manager** — no full Xcode required, just Command
-Line Tools (`xcode-select --install`).
+---
 
-```bash
-# Build AND install to /Applications (recommended — see note below)
-Scripts/install.sh
-```
+## 📦 Requirements
 
-`install.sh` quits any running copy, builds a release bundle, installs it to
-`/Applications/Quack.app`, and resets stale permission grants so the new copy
-prompts cleanly. The menu-bar duck appears at the top-right; open **Settings…**
-to enable features one at a time.
+- **macOS 13 Ventura** or later
+- **Apple Silicon** for external brightness (DDC over `IOAVService`); Intel runs everything else
+- A display that supports **DDC/CI** — Settings shows "DDC supported / not supported" per display
 
-> **Why install to /Applications matters.** macOS ties Accessibility/Calendar
-> permissions to an app's bundle id *and* signature at a fixed path. Running
-> from the build folder, or re-signing on every rebuild, makes grants silently
-> stop working (macOS may still show Quack as "allowed" while it does nothing).
-> Always run via `install.sh` and grant permissions to the installed copy. Each
-> reinstall resets the grants, so you re-approve once per install.
+---
 
-Other scripts:
+## 🚀 Install
+
+Builds with **Swift Package Manager** — no full Xcode, just Command Line Tools
+(`xcode-select --install`).
 
 ```bash
-swift test                 # run the logic tests (no hardware needed)
-Scripts/build-app.sh       # just build build/Quack.app (debug; CONFIG=release for release)
-Scripts/package-dmg.sh     # wrap build/Quack.app in a drag-to-Applications DMG
-Scripts/make-icon.sh       # regenerate Resources/AppIcon.icns from Resources/AppIcon-source.png
+./Scripts/install.sh
 ```
 
-### Verify it's working
+This quits any running copy, builds a release bundle, installs it to
+`/Applications/Quack.app`, and relaunches it (Settings opens on launch). Click
+the duck → enable what you want.
 
-Stream Quack's own logs while you use it:
+> **Always run via `install.sh` / the installed copy.** macOS ties Accessibility
+> & Calendar grants to the bundle id + signature at a fixed path. Running from
+> the build folder makes grants silently stop working. The stable
+> "Quack Local Signing" identity keeps grants across rebuilds.
+
+**Other scripts**
 
 ```bash
-log stream --predicate 'subsystem == "com.quack.menubar"' --level debug
+swift test                 # logic tests (no hardware needed)
+CONFIG=release Scripts/build-app.sh   # build build/Quack.app
+Scripts/package-dmg.sh     # wrap it in a drag-to-Applications DMG
+Scripts/make-icon.sh       # regenerate the .icns from Resources/AppIcon-source.png
 ```
 
-You'll see lines like `Brightness key tap installed`, `Scroll gesture tap
-installed`, `refreshDisplays: 1 external screen(s), 1 DDC service(s)`, and
-`swipe right -> move ok`. If a tap fails to install, the log says so (almost
-always means Accessibility isn't effective yet).
+---
 
-### Brightness with F1 / F2
+## 🎛️ Usage
 
-With the brightness feature on and Accessibility granted, moving the cursor onto
-an external display and pressing the Mac brightness keys adjusts **that monitor**
-over DDC; the built-in display is left alone. On the built-in display the keys
-behave normally. Step size is configurable in Settings.
+- **Duck** — click to open Settings. Hide it via **General → Hide duck icon**.
+- **Brightness** — cursor on an external display, press **F1/F2**. Past the
+  monitor's minimum it keeps dimming with a software overlay. A native-style HUD
+  shows the level.
+- **Window shortcuts** — `⌘⌥ + ↑` fill, `↓` move to the screen below, `←`/`→`
+  left/right half; press a direction again to jump to the adjacent monitor.
+- **Window swipe** — point at a title bar, swipe two fingers: up = fullscreen,
+  down = minimize, left/right = snap to that half.
+- **Dock pinch** — point at an app's Dock icon and pinch-in to quit it.
+- **Reminders** — pick lead times under **Calendar → Reminders**; 20/10/5 are
+  plain notifications, 1-minute and on-time show a **Join** button. Each group
+  has its own sound (previewed on selection) and a **Preview** button.
+- **Temperature** — toggle under **CPU**; click the flame for thermal pressure +
+  exact reading.
 
-### Managing calendar accounts
+---
 
-In Settings → Calendar, turn off "Sync all calendars" to choose exactly which
-accounts and calendars feed the menu bar and reminders — toggle a whole account
-or individual calendars. **Add or remove accounts…** opens System Settings →
-Internet Accounts (macOS owns account creation; Quack reads whatever is there).
+## 🔐 Permissions
 
-## Permissions
+- **Calendar** — requested when you enable calendar features.
+- **Accessibility** — for F1/F2 routing, window shortcuts, swipe, and dock
+  pinch. Can't be granted programmatically: click **Grant**, flip Quack on in
+  System Settings → Privacy & Security → Accessibility. Quack picks it up live.
 
-- **Calendar / Notifications** — requested automatically the first time you
-  enable the matching feature.
-- **Accessibility** (window swipe + F1/F2 brightness routing) — cannot be
-  granted programmatically. Click **Grant** in Settings; macOS opens System
-  Settings → Privacy & Security → Accessibility, where you flip Quack on. Quack
-  detects the change by polling.
+Each Settings section has an **Open Settings** deep-link if you ever deny one.
 
-If you ever deny a permission, each Settings section has an **Open Settings**
-button that deep-links to the right pane.
+---
 
-## Signing & distribution (Developer ID + notarization)
-
-`Scripts/build-app.sh` ad-hoc signs by default (fine for local use). To produce
-a distributable DMG:
-
-```bash
-# 1. Sign with hardened runtime using your Developer ID
-SIGN_ID="Developer ID Application: Your Name (TEAMID)" \
-  CONFIG=release Scripts/build-app.sh
-
-# 2. Package as a DMG
-hdiutil create -volname Quack -srcfolder build/Quack.app -ov -format UDZO build/Quack.dmg
-
-# 3. Notarize and staple
-xcrun notarytool submit build/Quack.dmg \
-  --apple-id you@example.com --team-id TEAMID --password "app-specific-pw" --wait
-xcrun stapler staple build/Quack.dmg
-```
-
-**No App Sandbox** — the entitlements (`Resources/Quack.entitlements`)
-deliberately omit it, because the sandbox blocks DDC over IOKit and cross-app
-Accessibility window moving. That is why Quack ships as a direct notarized DMG
-rather than through the Mac App Store.
-
-## Architecture
+## 🏗️ Architecture
 
 ```
 QuackKit (library, fully unit-tested — no system/UI deps)
-  Models/        MeetingEvent, QuackSettings
-  Settings/      SettingsStore (+ injectable KeyValueStore)
-  Calendar/      CalendarProvider, MeetingSelection, MeetingStore, MeetingURLParser
-  Reminders/     ReminderPlan (pure scheduling + diff)
-  MenuBar/       CountdownFormatter
-  Display/       ScreenGeometry (cursor→screen, swipe targeting),
-                 TrackpadSwipe (finger-delta normalization), BrightnessMath
-  Permissions/   PermissionStatusMapper
-  Coordinator/   AppCoordinator, ManagedService, Feature
+  Models/      MeetingEvent, QuackSettings, MeetingProvider
+  Calendar/    CalendarProvider, MeetingSelection, MeetingStore, MeetingURLParser
+  MenuBar/     CountdownFormatter
+  Display/     ScreenGeometry, TrackpadSwipe, BrightnessMath
+  Coordinator/ AppCoordinator, ManagedService, Feature
+  Permissions/ PermissionStatusMapper · Settings/ SettingsStore
 
-Quack (executable — SwiftUI + AppKit + system frameworks)
-  QuackApp / AppEnvironment      composition root, MenuBarExtra, Settings scene
+Quack (executable — SwiftUI + AppKit)
+  MenuBar/   StatusItemController (duck + countdown), TemperatureStatusItem, MenuContentView
   Calendar/  EventKitProvider, CalendarRefreshService
-  Reminders/ ReminderScheduler (UNUserNotificationCenter), NotificationDelegate
-  Display/   CursorBrightnessService, BrightnessController, DDCControl
-  Windows/   GestureMonitor (CGEventTap), WindowMover, AXHelpers
-  Permissions/ PermissionsManager
-  MenuBar/   MenuBarLabelView, MenuContentView
-  Settings/  SettingsView (one section per feature)
+  Reminders/ ReminderScheduler · Toast/ ToastPresenter
+  Display/   CursorBrightnessService, BrightnessKeyTap, BrightnessController,
+             DisplayDimmer, BrightnessHUD, DDCControl
+  Windows/   HotkeyMonitor, GestureMonitor, EventTapThread, WindowMover,
+             DockPinchMonitor, DockAccessibility, AXHelpers, InputTaps
+  Settings/  SettingsView
 
-CDDC (C target)  DDC/CI brightness over the private IOAVService API (m1ddc-style)
+C targets (private-API shims, no sandbox)
+  CDDC         DDC/CI brightness via IOAVService (m1ddc-style)
+  CMultitouch  raw trackpad pinch via MultitouchSupport (dlopen)
+  CSMC         CPU temperature via SMC + IOHID
 ```
 
-The design keeps all decision logic in `QuackKit` behind protocols and pure
-functions, so it is unit-testable without hardware or permissions. The app
-target wires that logic to the live system frameworks. An `AppCoordinator`
-observes `SettingsStore` and starts/stops each service as flags flip —
-guaranteeing a disabled feature never triggers its permission prompt.
+All decision logic lives in `QuackKit` behind protocols and pure functions, so
+it's unit-testable without hardware or permissions; the app target wires it to
+the live frameworks. An `AppCoordinator` starts/stops each service as its flag
+flips, so a disabled feature never triggers a permission prompt.
 
-### What can't be unit-tested
+---
 
-DDC brightness (`DDCControl`/`CDDC`) and window moving (`AXHelpers`,
-`GestureMonitor`) require real hardware and granted permissions. The
-*geometry and selection math* behind them lives in `QuackKit.ScreenGeometry`
-and **is** covered by tests; only the IOKit/Accessibility I/O is manual.
+## 📤 Sharing / distribution
 
-## Status / roadmap
+`Scripts/package-dmg.sh` produces a drag-to-Applications DMG. It's signed with a
+local identity, so a friend opens it via **right-click → Open** the first time
+(or `xattr -dr com.apple.quarantine /Applications/Quack.app`).
 
-Implemented: menu-bar shell, settings, EventKit calendar, reminders + join
-toast, countdown, cursor-based brightness, window swipe, permissions, app
-bundling & signing.
+For zero Gatekeeper warnings, sign with a **Developer ID** and notarize:
 
-Not yet implemented (staged): **Google Calendar API** (Step 7) — EventKit
-already surfaces Google calendars added to macOS, so this is only needed for
-accounts not in the system. The `CalendarProvider` protocol is the extension
-point; add a `GoogleCalendarProvider` (OAuth 2.0 + PKCE, tokens in Keychain).
+```bash
+SIGN_ID="Developer ID Application: Your Name (TEAMID)" CONFIG=release Scripts/build-app.sh
+Scripts/package-dmg.sh
+xcrun notarytool submit build/Quack.dmg --apple-id you@example.com --team-id TEAMID --password "app-specific-pw" --wait
+xcrun stapler staple build/Quack.dmg
+```
+
+**No App Sandbox** by design — it would block DDC over IOKit and cross-app
+Accessibility window moves — so Quack ships as a notarized DMG, not via the App
+Store.
