@@ -28,6 +28,7 @@ enum WindowMover {
     /// happened.
     @discardableResult
     static func move(window: AXUIElement, currentFrame: CGRect, swipe: CGVector, snapEnabled: Bool) -> Bool {
+        guard !AXHelpers.isOwnWindow(window) else { return false }   // never move our own window (crashes off-main)
         let screens = screenInfos()
         guard let source = ScreenGeometry.screen(containing: CGPoint(x: currentFrame.midX, y: currentFrame.midY), in: screens),
               let direction = ScreenGeometry.direction(forDelta: swipe, minMagnitude: 1)
@@ -71,6 +72,7 @@ enum WindowMover {
     /// on the current screen, or move to the adjacent monitor (carrying the same
     /// state) when the window is already in that state.
     static func applyArrow(_ arrow: ScreenGeometry.ArrowKey, window: AXUIElement) {
+        guard !AXHelpers.isOwnWindow(window) else { return }   // never move our own window (crashes off-main)
         guard let frame = AXHelpers.frame(of: window) else { return }
         let screens = screenInfos()
         guard let source = ScreenGeometry.screen(containing: CGPoint(x: frame.midX, y: frame.midY), in: screens)

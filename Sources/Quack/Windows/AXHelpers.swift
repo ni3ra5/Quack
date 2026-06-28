@@ -67,6 +67,15 @@ enum AXHelpers {
         return (win as! AXUIElement)
     }
 
+    /// True when `window` belongs to Quack itself. Manipulating our own window's
+    /// frame via AX runs in-process; `WindowMover` does that off the main thread,
+    /// which crashes AppKit — so the window features must skip our own windows.
+    static func isOwnWindow(_ window: AXUIElement) -> Bool {
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(window, &pid) == .success else { return false }
+        return pid == ProcessInfo.processInfo.processIdentifier
+    }
+
     /// Brings the window above all others and activates its app, so a window
     /// moved to another screen lands on top.
     static func raise(_ window: AXUIElement) {
