@@ -3,7 +3,7 @@ import Foundation
 /// Formats the menu-bar title from the current/next meeting.
 public enum CountdownFormatter {
 
-    public static let maxTitleLength = 14
+    public static let maxTitleLength = 16
 
     /// Meetings further away than this are not shown in the menu bar.
     public static let menuBarHorizon: TimeInterval = 8 * 3600

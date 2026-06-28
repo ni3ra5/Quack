@@ -34,6 +34,7 @@ final class TemperatureStatusItem: NSObject, ManagedService {
         // can drop *other* apps'/our own items (that's what made the duck vanish).
         if statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            item.autosaveName = "quack.temperature"
             if let button = item.button {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 11, weight: .regular)
                 let flame = NSImage(systemSymbolName: "flame.fill", accessibilityDescription: "CPU temperature")?
