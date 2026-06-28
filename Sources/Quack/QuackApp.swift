@@ -27,6 +27,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let env = AppEnvironment()
         self.env = env
         statusController = StatusItemController(env: env)
-        env.showSettings()   // open Settings on launch
+        env.showSettings()   // open Settings on first launch
+    }
+
+    /// Fires when the app is opened again while already running (Finder/Dock/
+    /// `open`). LSUIElement apps get this instead of a fresh launch.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        env?.showSettings()
+        return true
     }
 }

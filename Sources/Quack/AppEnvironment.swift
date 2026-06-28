@@ -81,7 +81,7 @@ final class AppEnvironment: ObservableObject {
             .temperature: temperatureService,
         ]
         self.coordinator = AppCoordinator(store: settings, services: services)
-        temperatureService.onOpenSettings = { [weak self] in self?.showSettings(selecting: .display) }
+        temperatureService.onOpenSettings = { [weak self] in self?.showSettings(selecting: .temperature) }
 
         // Re-forward nested ObservableObject changes so SwiftUI views observing
         // `AppEnvironment` refresh when settings / meetings / permissions change.

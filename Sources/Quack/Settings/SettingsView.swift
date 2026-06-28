@@ -3,13 +3,14 @@ import QuackKit
 
 /// The feature groups shown as tabs in the settings window.
 enum SettingsTab: String, CaseIterable {
-    case general, calendar, display, windows, permissions
+    case general, calendar, display, temperature, windows, permissions
 
     var title: String {
         switch self {
         case .general: return "General"
         case .calendar: return "Calendar"
         case .display: return "Display"
+        case .temperature: return "CPU"
         case .windows: return "Windows"
         case .permissions: return "Permissions"
         }
@@ -20,6 +21,7 @@ enum SettingsTab: String, CaseIterable {
         case .general: return "gearshape"
         case .calendar: return "calendar"
         case .display: return "sun.max"
+        case .temperature: return "thermometer.medium"
         case .windows: return "macwindow.on.rectangle"
         case .permissions: return "lock.shield"
         }
@@ -96,6 +98,7 @@ struct SettingsPane: View {
                 RemindersSection()
             case .display:
                 BrightnessSection()
+            case .temperature:
                 TemperatureSection()
             case .windows:
                 WindowSwipeSection()
@@ -503,7 +506,7 @@ private struct WindowSwipeSection: View {
         Section("Window swipe") {
             Toggle("Manage windows with a two-finger swipe on the title bar",
                    isOn: s.binding(\.windowSwipeEnabled))
-            Text("Point at a window's title bar, then swipe two fingers: up to fill the screen, down to minimize. To move a window to another monitor, use the ⌘⌥ + arrow shortcuts.")
+            Text("Point at a window's title bar, then swipe two fingers: up to fill the screen, down to minimize.")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
             if s.settings.windowSwipeEnabled {
                 Toggle("Swipe left or right to snap to half-screen",
@@ -535,7 +538,7 @@ private struct DockGesturesSection: View {
         let s = env.settingsStore
         Section("Dock gestures") {
             Toggle("Pinch a Dock icon to quit the app", isOn: s.binding(\.dockPinchQuitEnabled))
-            Text("Point at an app's icon in the Dock and pinch two fingers together on the trackpad to quit it. Apps with unsaved work still get to ask before closing.")
+            Text("Point at an app's icon in the Dock and pinch-in (two fingers together) on the trackpad to quit it. Apps with unsaved work still get to ask before closing.")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
             if s.settings.dockPinchQuitEnabled {
                 if env.permissions.status(for: .accessibility) != .granted {
