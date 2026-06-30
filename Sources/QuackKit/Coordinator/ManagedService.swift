@@ -29,7 +29,7 @@ public enum Feature: CaseIterable, Sendable {
         case .brightness: return settings.brightnessEnabled
         case .windowSwipe: return settings.windowSwipeEnabled
         case .windowShortcuts: return settings.windowShortcutsEnabled
-        case .dockPinch: return settings.dockPinchQuitEnabled
+        case .dockPinch: return settings.dockPinchQuitEnabled || settings.windowPinchCloseEnabled
         case .temperature: return settings.cpuTemperatureEnabled
         }
     }

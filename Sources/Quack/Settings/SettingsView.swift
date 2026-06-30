@@ -529,18 +529,24 @@ private struct WindowSwipeSection: View {
     }
 }
 
-// MARK: - Dock gestures
+// MARK: - Pinch gestures
 
 private struct DockGesturesSection: View {
     @EnvironmentObject var env: AppEnvironment
 
     var body: some View {
         let s = env.settingsStore
-        Section("Dock gestures") {
+        let anyOn = s.settings.dockPinchQuitEnabled || s.settings.windowPinchCloseEnabled
+        Section("Pinch gestures") {
             Toggle("Pinch a Dock icon to quit the app", isOn: s.binding(\.dockPinchQuitEnabled))
-            Text("Point at an app's icon in the Dock and pinch-in (two fingers together) on the trackpad to quit it. Apps with unsaved work still get to ask before closing.")
+            Text("Point at an app's icon in the Dock and pinch-in (two fingers together) to quit it. Apps with unsaved work still get to ask first.")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
-            if s.settings.dockPinchQuitEnabled {
+
+            Toggle("Pinch a window's title bar to close it", isOn: s.binding(\.windowPinchCloseEnabled))
+            Text("Point at a window's title bar and pinch-in to close just that window (not the whole app).")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+
+            if anyOn {
                 if env.permissions.status(for: .accessibility) != .granted {
                     HStack {
                         Text("Requires Accessibility permission.")

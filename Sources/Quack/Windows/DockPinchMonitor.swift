@@ -79,29 +79,54 @@ final class DockPinchMonitor: ManagedService {
         }
     }
 
-    /// Runs on the main actor when the detector reports a pinch-in.
+    /// Runs on the main actor when the detector reports a pinch-in. Routes to a
+    /// Dock-icon quit or a title-bar window close, depending on what's under the
+    /// cursor and which gestures are enabled.
     private func handlePinch() {
-        guard started, settings.settings.dockPinchQuitEnabled else { return }
-        // Debounce: one quit per gesture-and-a-bit, so a single pinch can't
+        let s = settings.settings
+        guard started, s.dockPinchQuitEnabled || s.windowPinchCloseEnabled else { return }
+        // Debounce: one action per gesture-and-a-bit, so a single pinch can't
         // double-fire as fingers settle.
         let now = Date()
         guard now.timeIntervalSince(lastFire) > 1.0 else { return }
 
-        guard let hit = DockAccessibility.appUnderCursor() else {
-            Log.dock.debug("pinch fired but no app Dock icon under cursor")
+        // 1) A Dock app icon under the cursor → quit that app.
+        if s.dockPinchQuitEnabled, let hit = DockAccessibility.appUnderCursor() {
+            let bid = hit.app.bundleIdentifier
+            // Never quit Quack itself; skip Finder (it just relaunches).
+            if bid == Bundle.main.bundleIdentifier || bid == "com.apple.finder" { return }
+            lastFire = now
+            indicator.flash(at: hit.iconCenter)
+            let name = hit.app.localizedName ?? bid ?? "app"
+            let quit = hit.app.terminate()
+            Log.dock.log("pinch-to-quit \(name, privacy: .public) -> \(quit ? "terminated" : "refused")")
             return
         }
-        // Guardrails: never quit Quack itself, and skip Finder (it just relaunches)
-        // so the gesture can't surprise the user with a system app.
-        let bid = hit.app.bundleIdentifier
-        if bid == Bundle.main.bundleIdentifier { return }
-        if bid == "com.apple.finder" { return }
 
-        lastFire = now
-        indicator.flash(at: hit.iconCenter)
-        let name = hit.app.localizedName ?? bid ?? "app"
-        let quit = hit.app.terminate()
-        Log.dock.log("pinch-to-quit \(name, privacy: .public) -> \(quit ? "terminated" : "refused")")
+        // 2) A window's title bar under the cursor → close just that window.
+        if s.windowPinchCloseEnabled, closeWindowUnderCursor() { lastFire = now }
+    }
+
+    /// Closes the window whose title bar is under the cursor (not the whole app).
+    /// Returns whether a window was closed.
+    private func closeWindowUnderCursor() -> Bool {
+        let mouse = NSEvent.mouseLocation          // Cocoa, Y-up
+        let ph = (NSScreen.screens.first { $0.frame.origin == .zero }?.frame.height)
+            ?? NSScreen.main?.frame.height ?? 0
+        let axPoint = CGPoint(x: mouse.x, y: ph - mouse.y)   // AX, Y-down
+
+        guard let window = AXHelpers.window(at: axPoint),
+              !AXHelpers.isOwnWindow(window),
+              let frame = AXHelpers.frame(of: window),
+              ScreenGeometry.titleBarBand(of: frame, height: 56).contains(axPoint)
+        else {
+            Log.dock.debug("pinch fired but cursor not on a window title bar")
+            return false
+        }
+        indicator.flash(at: mouse)
+        let closed = AXHelpers.close(window)
+        Log.dock.log("pinch-to-close window -> \(closed ? "closed" : "refused")")
+        return closed
     }
 }
 

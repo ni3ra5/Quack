@@ -49,6 +49,14 @@ enum AXHelpers {
         return AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, value) == .success
     }
 
+    /// Closes a window (the AX equivalent of clicking its red button) — closes
+    /// just that window, not the whole app. Returns whether it was performed.
+    @discardableResult
+    static func close(_ window: AXUIElement) -> Bool {
+        guard let button = copyElement(window, attribute: kAXCloseButtonAttribute) else { return false }
+        return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
+    }
+
     /// Minimizes a window into the Dock (the AX equivalent of clicking its
     /// yellow button). Returns whether the API accepted it.
     @discardableResult

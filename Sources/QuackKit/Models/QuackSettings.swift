@@ -18,6 +18,9 @@ public struct QuackSettings: Codable, Equatable, Sendable {
     public var windowShortcutModifiers: Int
     /// Pinch two fingers in on an app's Dock icon to quit that app.
     public var dockPinchQuitEnabled: Bool
+    /// Pinch two fingers in while hovering a window's title bar to close that
+    /// window (just the window, not the whole app).
+    public var windowPinchCloseEnabled: Bool
     /// Show CPU temperature (with a flame icon) in the menu bar.
     public var cpuTemperatureEnabled: Bool
     /// Hide the duck icon from the menu bar.
@@ -63,6 +66,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         windowShortcutsEnabled: Bool = true,
         windowShortcutModifiers: Int = 0b0011,   // ⌘ + ⌥
         dockPinchQuitEnabled: Bool = false,
+        windowPinchCloseEnabled: Bool = false,
         cpuTemperatureEnabled: Bool = false,
         hideDuckIcon: Bool = false,
         remindAtStart: Bool = true,
@@ -88,6 +92,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         self.windowShortcutsEnabled = windowShortcutsEnabled
         self.windowShortcutModifiers = windowShortcutModifiers
         self.dockPinchQuitEnabled = dockPinchQuitEnabled
+        self.windowPinchCloseEnabled = windowPinchCloseEnabled
         self.cpuTemperatureEnabled = cpuTemperatureEnabled
         self.hideDuckIcon = hideDuckIcon
         self.remindAtStart = remindAtStart
@@ -126,6 +131,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         windowShortcutsEnabled = v(.windowShortcutsEnabled, d.windowShortcutsEnabled)
         windowShortcutModifiers = v(.windowShortcutModifiers, d.windowShortcutModifiers)
         dockPinchQuitEnabled = v(.dockPinchQuitEnabled, d.dockPinchQuitEnabled)
+        windowPinchCloseEnabled = v(.windowPinchCloseEnabled, d.windowPinchCloseEnabled)
         cpuTemperatureEnabled = v(.cpuTemperatureEnabled, d.cpuTemperatureEnabled)
         hideDuckIcon = v(.hideDuckIcon, d.hideDuckIcon)
         remindAtStart = v(.remindAtStart, d.remindAtStart)
