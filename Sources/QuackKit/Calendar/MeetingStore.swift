@@ -5,17 +5,18 @@ import Combine
 /// `MeetingStore` so it can be unit tested without any Combine/timer machinery.
 public enum MeetingSelection {
 
-    /// The meeting to surface "now": an in-progress meeting takes priority,
-    /// otherwise the soonest upcoming one. Meetings already ended are ignored.
+    /// The meeting to surface "now": the soonest *upcoming* event, so the menu
+    /// bar always counts down to what's next. An in-progress event is shown only
+    /// as a fallback when nothing is coming up (so the menu bar isn't blank).
     ///
     /// All-day events are excluded — they have no meaningful countdown and would
     /// otherwise dominate the menu bar all day. They still appear in `upcoming`.
     public static func currentOrNext(from events: [MeetingEvent], now: Date) -> MeetingEvent? {
         let sorted = events.filter { !$0.isAllDay }.sorted { $0.start < $1.start }
-        if let inProgress = sorted.first(where: { $0.isInProgress(at: now) }) {
-            return inProgress
+        if let next = sorted.first(where: { $0.start > now }) {
+            return next
         }
-        return sorted.first(where: { $0.start > now })
+        return sorted.first(where: { $0.isInProgress(at: now) })
     }
 
     /// Filters events to those overlapping `window` and, when `calendarIDs` is

@@ -72,6 +72,11 @@ final class ToastPresenter {
         panel.hasShadow = true
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+        // Invert the theme relative to the OS: a white toast in dark mode, a dark
+        // toast in light mode. Forcing the panel's appearance flips the material,
+        // the window-background color, and SwiftUI's colorScheme together.
+        let systemDark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        panel.appearance = NSAppearance(named: systemDark ? .aqua : .darkAqua)
         let view = ToastView(
             item: item,
             onJoin: { [weak self, weak panel] in
@@ -121,7 +126,7 @@ private struct ToastView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
                     .font(.system(size: 15, weight: .semibold))
                     .lineLimit(1)
@@ -144,7 +149,7 @@ private struct ToastView: View {
         .frame(minWidth: 300, maxWidth: 480, alignment: .leading)
         .background(Color(nsColor: .windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
         .overlay(alignment: .topLeading) {
             if hovering {
                 Button(action: onClose) {

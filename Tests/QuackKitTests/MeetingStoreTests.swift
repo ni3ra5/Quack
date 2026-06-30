@@ -5,14 +5,15 @@ import Foundation
 @Suite struct MeetingSelectionTests {
     private let base = Date(timeIntervalSince1970: 1_700_000_000)
 
-    private func ev(_ id: String, startOffset: TimeInterval, duration: TimeInterval = 1800, cal: String = "c") -> MeetingEvent {
-        MeetingEvent(id: id, title: id, start: base.addingTimeInterval(startOffset),
+    private func ev(_ id: String, startOffset: TimeInterval, duration: TimeInterval = 1800, cal: String = "c", title: String? = nil) -> MeetingEvent {
+        MeetingEvent(id: id, title: title ?? id, start: base.addingTimeInterval(startOffset),
                      end: base.addingTimeInterval(startOffset + duration), calendarID: cal)
     }
 
-    @Test func picksInProgressOverUpcoming() {
+    @Test func picksUpcomingOverInProgress() {
+        // The soonest upcoming event wins even when one is in progress.
         let events = [ev("past", startOffset: -3600), ev("now", startOffset: -300), ev("soon", startOffset: 600)]
-        #expect(MeetingSelection.currentOrNext(from: events, now: base)?.id == "now")
+        #expect(MeetingSelection.currentOrNext(from: events, now: base)?.id == "soon")
     }
 
     @Test func picksSoonestUpcomingWhenNoneInProgress() {
@@ -25,9 +26,10 @@ import Foundation
         #expect(MeetingSelection.currentOrNext(from: events, now: base) == nil)
     }
 
-    @Test func backToBackPicksCurrent() {
-        let events = [ev("a", startOffset: -1800, duration: 1800), ev("b", startOffset: 0, duration: 1800)]
-        #expect(MeetingSelection.currentOrNext(from: events, now: base)?.id == "b")
+    @Test func fallsBackToInProgressWhenNothingUpcoming() {
+        // With only an in-progress event and nothing after it, show that event.
+        let events = [ev("now", startOffset: -300, duration: 1800)]
+        #expect(MeetingSelection.currentOrNext(from: events, now: base)?.id == "now")
     }
 
     @Test func empty() {
