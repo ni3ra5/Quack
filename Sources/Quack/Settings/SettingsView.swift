@@ -104,6 +104,7 @@ struct SettingsPane: View {
                 WindowSwipeSection()
                 DockGesturesSection()
                 KeyboardShortcutsSection()
+                NotchMediaSection()
             case .permissions:
                 PermissionsSection()
                 StatusSection()
@@ -558,6 +559,20 @@ private struct DockGesturesSection: View {
                         .font(.system(size: 12)).foregroundStyle(.orange)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Notch media
+
+private struct NotchMediaSection: View {
+    @EnvironmentObject var env: AppEnvironment
+    var body: some View {
+        let s = env.settingsStore
+        Section("Notch") {
+            Toggle("Show a media player when you hover the notch", isOn: s.binding(\.notchMediaEnabled))
+            Text("Move the pointer to the notch to see what's playing and control it. Built-in display only.")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
         }
     }
 }

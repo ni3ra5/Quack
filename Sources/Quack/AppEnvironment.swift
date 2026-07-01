@@ -37,6 +37,7 @@ final class AppEnvironment: ObservableObject {
     private let hotkeyService: HotkeyMonitor
     private let dockPinchService: DockPinchMonitor
     private let temperatureService: TemperatureStatusItem
+    private let notchMediaService: NotchMediaService
 
     private let coordinator: AppCoordinator
     private var cancellables: Set<AnyCancellable> = []
@@ -69,6 +70,7 @@ final class AppEnvironment: ObservableObject {
         self.hotkeyService = HotkeyMonitor(settings: settings, permissions: permissions)
         self.dockPinchService = DockPinchMonitor(settings: settings, permissions: permissions, diagnostics: diagnostics)
         self.temperatureService = TemperatureStatusItem(settings: settings)
+        self.notchMediaService = NotchMediaService()
 
         let services: [Feature: ManagedService] = [
             .calendar: calendarService,
@@ -79,6 +81,7 @@ final class AppEnvironment: ObservableObject {
             .windowShortcuts: hotkeyService,
             .dockPinch: dockPinchService,
             .temperature: temperatureService,
+            .notchMedia: notchMediaService,
         ]
         self.coordinator = AppCoordinator(store: settings, services: services)
         temperatureService.onOpenSettings = { [weak self] in self?.showSettings(selecting: .temperature) }
