@@ -1,8 +1,27 @@
 # Notch Icon Reveal — Design Spec
 
 - **Date:** 2026-07-01
-- **Status:** Approved, not yet implemented
+- **Status:** ⚠️ SHELVED (2026-07-01) after on-hardware verification — see note below.
 - **Sub-project:** 1 of 2 (see [Relationship to sub-project 2](#relationship-to-sub-project-2))
+
+> **SHELVED — why.** The implementation was built and reviewed (branch `Knock-Notch`),
+> but on-hardware verification (macOS 26.5.1, M4) proved the core mechanism cannot
+> work. A standalone probe (`scratchpad/notch-probe.swift`) confirmed: (1) menu-bar
+> extras are owned by the system *Control Center* process, not their apps; and
+> (2) macOS drops overflow items from layout entirely — a notch-hidden item has NO
+> on-screen window to scan, screenshot, or forward a click to. So
+> `StatusItemScanner`/`StatusItemMirror`/`StatusItemForwarder` return/target nothing
+> by construction. Source-level research into Ice/Thaw confirmed the only working
+> technique is to *take over* the whole menu bar (own-spacer + private SkyLight/CGS
+> APIs + a two-hop CGEvent "scromble" + — on macOS 26 — an XPC Accessibility-tree
+> service to recover source PIDs), which is product-scale, private-API-dependent, and
+> breaks per macOS release (Ice has open unresolved Tahoe bugs). Decision: shelve the
+> Quack-native icon manager (recommend users run Thaw), and reuse the **working notch
+> panel shell** (`NotchGeometry`/`NotchScreenReader`/`NotchPanel`/`NotchViewModel`/
+> `NotchShape`) for sub-project 2 (dynamic notch: media + clipboard), which does not
+> fight the OS. Panel positioning is verified working (probe saw it at layer 27,
+> exactly under the notch); whether SwiftUI `.onHover` fires there is still unproven
+> and is the first thing sub-project 2 must de-risk.
 
 ## Problem
 
