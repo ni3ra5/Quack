@@ -40,6 +40,21 @@ mkdir -p "${APP_DIR}/Contents/MacOS"
 mkdir -p "${APP_DIR}/Contents/Resources"
 
 cp "${BUILD_DIR}/${APP_NAME}" "${APP_DIR}/Contents/MacOS/${APP_NAME}"
+
+# Vendored MediaRemoteAdapter: copy its dynamic lib + resource bundle so the
+# perl adapter can locate run.pl (Bundle.module) and the dylib
+# (Bundle(for:).executablePath) at runtime.
+FW_DIR="${APP_DIR}/Contents/Frameworks"
+mkdir -p "${FW_DIR}"
+# The SwiftPM build products live in ${BUILD_DIR}; names may be
+# libMediaRemoteAdapter.dylib and MediaRemoteAdapter_MediaRemoteAdapter.bundle.
+for artifact in "${BUILD_DIR}"/libMediaRemoteAdapter.dylib \
+                "${BUILD_DIR}"/MediaRemoteAdapter_MediaRemoteAdapter.bundle \
+                "${BUILD_DIR}"/*MediaRemoteAdapter*.bundle; do
+    [ -e "$artifact" ] && cp -R "$artifact" "${FW_DIR}/" 2>/dev/null || true
+done
+echo "▸ Bundled MediaRemoteAdapter artifacts into ${FW_DIR}"
+
 cp "Resources/Info.plist" "${APP_DIR}/Contents/Info.plist"
 printf 'APPL????' > "${APP_DIR}/Contents/PkgInfo"
 

@@ -39,11 +39,30 @@ let package = Package(
                 .linkedFramework("CoreFoundation"),
             ]
         ),
+        // Vendored (ejbills/mediaremote-adapter @ cf30c4f, BSD-3-Clause):
+        // ObjC resolver for private MediaRemote symbols. Compiled without ARC.
+        .target(
+            name: "CIMediaRemote",
+            publicHeadersPath: "include",
+            cSettings: [.unsafeFlags(["-fno-objc-arc"])],
+            linkerSettings: [
+                .linkedFramework("Foundation"),
+                .linkedFramework("AppKit"),
+            ]
+        ),
+        // Vendored: Swift controller that spawns /usr/bin/perl + run.pl to load
+        // the CIMediaRemote dylib and stream/command now-playing over pipes.
+        .target(
+            name: "MediaRemoteAdapter",
+            dependencies: ["CIMediaRemote"],
+            exclude: ["LICENSE", "VENDORED.md"],
+            resources: [.copy("Resources/run.pl")]
+        ),
         // The app target: SwiftUI + AppKit + system frameworks. Wires QuackKit
         // logic to live services (EventKit, UserNotifications, IOKit DDC, AX).
         .executableTarget(
             name: "Quack",
-            dependencies: ["QuackKit", "CDDC", "CMultitouch", "CSMC"],
+            dependencies: ["QuackKit", "CDDC", "CMultitouch", "CSMC", "MediaRemoteAdapter"],
             linkerSettings: [
                 .linkedFramework("SwiftUI"),
                 .linkedFramework("AppKit"),

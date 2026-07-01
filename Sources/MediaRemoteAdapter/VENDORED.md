@@ -1,0 +1,1 @@
+Vendored verbatim from https://github.com/ejbills/mediaremote-adapter, pinned commit `cf30c4f1af29b5829d859f088f8dbdf12611a046` (BSD-3-Clause, see `LICENSE`). Covers this directory and `Sources/CIMediaRemote/`.
