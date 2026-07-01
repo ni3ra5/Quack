@@ -14,26 +14,18 @@ final class NotchMediaService: NSObject, ManagedService {
     private let nowPlaying = NowPlayingService()
     private var panel: NotchPanel?
     private var cancellable: AnyCancellable?
+    private var wired = false
 
     private let collapsedHeight: CGFloat = 6      // thin below-notch hover lip
     private let expandedHeight: CGFloat = 56      // room for art + controls, below the cutout
     private let expandedWidth: CGFloat = 320
 
     func start() {
-        guard reader.currentLayout() != nil else {
-            reader.onChange = { [weak self] in self?.repositionOrTeardown() }
-            reader.startObserving()
-            return
-        }
-        buildPanelIfNeeded()
-        model.onHoverChange = { [weak self] h in self?.handleHover(h) }
-        model.onToggle = { [weak self] in self?.nowPlaying.togglePlayPause() }
-        model.onNext = { [weak self] in self?.nowPlaying.next() }
-        model.onPrevious = { [weak self] in self?.nowPlaying.previous() }
         reader.onChange = { [weak self] in self?.repositionOrTeardown() }
         reader.startObserving()
-        nowPlaying.start()
-        cancellable = nowPlaying.$track.sink { [weak self] t in self?.model.track = t }
+        guard reader.currentLayout() != nil else { return }  // no notch yet; onChange will wake us
+        buildPanelIfNeeded()
+        wireIfNeeded()
         reposition()
     }
 
@@ -41,6 +33,7 @@ final class NotchMediaService: NSObject, ManagedService {
         reader.stopObserving()
         reader.onChange = nil
         cancellable = nil
+        wired = false
         nowPlaying.stop()
         panel?.orderOut(nil)
         panel = nil
@@ -48,21 +41,42 @@ final class NotchMediaService: NSObject, ManagedService {
         model.track = nil
     }
 
+    /// Wires hover/transport callbacks and starts NowPlayingService exactly once.
+    /// Called from both `start()` (notch already present) and
+    /// `repositionOrTeardown()` (notch appears later) — idempotent so either
+    /// caller can run first without double-wiring.
+    private func wireIfNeeded() {
+        guard !wired else { return }
+        wired = true
+        model.onHoverChange = { [weak self] h in self?.handleHover(h) }
+        model.onToggle = { [weak self] in self?.nowPlaying.togglePlayPause() }
+        model.onNext = { [weak self] in self?.nowPlaying.next() }
+        model.onPrevious = { [weak self] in self?.nowPlaying.previous() }
+        nowPlaying.start()
+        cancellable = nowPlaying.$track.sink { [weak self] t in self?.model.track = t }
+    }
+
     private func buildPanelIfNeeded() {
         guard panel == nil else { return }
         let p = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: expandedWidth, height: collapsedHeight))
+        guard let content = p.contentView else { return }
         let host = NSHostingView(rootView: NotchMediaView(model: model))
-        host.frame = p.contentView!.bounds
+        host.frame = content.bounds
         host.autoresizingMask = [.width, .height]
-        p.contentView?.addSubview(host)
+        content.addSubview(host)
         panel = p
     }
 
     private func repositionOrTeardown() {
         guard reader.currentLayout() != nil else {
+            // Notch disappeared (transient screen reconfig, e.g. monitor flicker).
+            // nowPlaying is intentionally left running rather than stopped/restarted
+            // here, to avoid churn if the notch reappears momentarily.
             panel?.orderOut(nil); model.isOpen = false; return
         }
-        buildPanelIfNeeded(); reposition()
+        buildPanelIfNeeded()
+        wireIfNeeded()
+        reposition()
     }
 
     /// Positions the panel centered under the notch. Collapsed = a thin lip just
