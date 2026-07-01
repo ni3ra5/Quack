@@ -19,20 +19,20 @@ import Testing
     }
 
     @Test func elapsedIsRawWhenPaused() {
-        // paused: elapsed = elapsedMicros/1e6, no interpolation
-        let s = snap(playing: false, elapsed: 30_000_000, ts: 900, rate: 1)
+        // paused: 30s at ts=900s (900_000_000µs), rate 1, now=1000s → 30 (no interpolation)
+        let s = snap(playing: false, elapsed: 30_000_000, ts: 900_000_000, rate: 1)
         #expect(NowPlayingDisplay.elapsedSeconds(s, nowEpochSeconds: 1000) == 30)
     }
 
     @Test func elapsedInterpolatesWhenPlaying() {
-        // playing: 30s at ts=900, rate 1, now=1000 → 30 + (1000-900)*1 = 130
-        let s = snap(playing: true, elapsed: 30_000_000, ts: 900, rate: 1)
+        // playing: 30s at ts=900s (900_000_000µs), rate 1, now=1000s → 30 + (1000-900)*1 = 130
+        let s = snap(playing: true, elapsed: 30_000_000, ts: 900_000_000, rate: 1)
         #expect(NowPlayingDisplay.elapsedSeconds(s, nowEpochSeconds: 1000) == 130)
     }
 
     @Test func elapsedUsesRateWhenPlaying() {
-        // rate 0 → no advance
-        let s = snap(playing: true, elapsed: 30_000_000, ts: 900, rate: 0)
+        // rate 0 → no advance; ts=900s (900_000_000µs), now=1000s → 30 + (1000-900)*0 = 30
+        let s = snap(playing: true, elapsed: 30_000_000, ts: 900_000_000, rate: 0)
         #expect(NowPlayingDisplay.elapsedSeconds(s, nowEpochSeconds: 1000) == 30)
     }
 }

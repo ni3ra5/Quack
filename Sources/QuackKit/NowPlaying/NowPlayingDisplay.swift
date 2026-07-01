@@ -32,7 +32,8 @@ public enum NowPlayingDisplay {
     public static func elapsedSeconds(_ s: NowPlayingSnapshot, nowEpochSeconds: Double) -> Double? {
         guard let elapsedMicros = s.elapsedMicros else { return nil }
         let elapsed = elapsedMicros / 1_000_000
-        guard s.isPlaying, let ts = s.timestampEpochMicros else { return elapsed }
+        guard s.isPlaying, let tsMicros = s.timestampEpochMicros else { return elapsed }
+        let ts = tsMicros / 1_000_000   // field is microseconds (real adapter: ~1.78e15)
         let rate = s.playbackRate ?? 0
         return elapsed + (nowEpochSeconds - ts) * rate
     }
