@@ -5,12 +5,14 @@ public enum PermissionKind: String, CaseIterable, Sendable {
     case notifications
     case calendar
     case accessibility
+    case screenRecording
 
     public var displayName: String {
         switch self {
         case .notifications: return "Notifications"
         case .calendar: return "Calendar"
         case .accessibility: return "Accessibility"
+        case .screenRecording: return "Screen Recording"
         }
     }
 }
@@ -52,5 +54,11 @@ public enum PermissionStatusMapper {
     /// Accessibility is a simple trusted/not-trusted boolean.
     public static func accessibility(isTrusted: Bool) -> PermissionStatus {
         isTrusted ? .granted : .notRequested
+    }
+
+    /// Screen Recording is a simple has-access / not boolean, from
+    /// `CGPreflightScreenCaptureAccess()`.
+    public static func screenRecording(hasAccess: Bool) -> PermissionStatus {
+        hasAccess ? .granted : .notRequested
     }
 }

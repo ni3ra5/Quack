@@ -89,6 +89,7 @@ final class PermissionsManager: ObservableObject {
         switch kind {
         case .accessibility: anchor = "Privacy_Accessibility"
         case .calendar: anchor = "Privacy_Calendars"
+        case .screenRecording: anchor = "Privacy_ScreenRecording"
         case .notifications:
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.notifications")!)
             return

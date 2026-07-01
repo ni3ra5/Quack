@@ -22,6 +22,16 @@ import Testing
         #expect(PermissionStatusMapper.accessibility(isTrusted: true) == .granted)
         #expect(PermissionStatusMapper.accessibility(isTrusted: false) == .notRequested)
     }
+
+    @Test func screenRecordingMapping() {
+        #expect(PermissionStatusMapper.screenRecording(hasAccess: true) == .granted)
+        #expect(PermissionStatusMapper.screenRecording(hasAccess: false) == .notRequested)
+    }
+
+    @Test func screenRecordingIsAKnownPermissionKind() {
+        #expect(PermissionKind.allCases.contains(.screenRecording))
+        #expect(PermissionKind.screenRecording.displayName == "Screen Recording")
+    }
 }
 
 @MainActor
