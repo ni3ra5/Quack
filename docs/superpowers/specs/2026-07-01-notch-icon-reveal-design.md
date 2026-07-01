@@ -125,14 +125,20 @@ Sources/Quack/MenuBar/Overflow/
                                1. AXUIElementPerformAction(kAXPressAction) on the
                                   AX element at the item's real position — same
                                   idiom as the existing AXHelpers.close/minimize.
-                               2. If that doesn't visibly open a menu, fall back
+                               2. Only if the AX press did NOT succeed, fall back
                                   to a CGEvent leftMouseDown/leftMouseUp pair
                                   posted via postToPid at the item's real frame
                                   (Ice's proven technique).
-                               There is no reliable signal for "did the menu
-                               actually open," so this fallback fires
-                               unconditionally after attempt 1 rather than
-                               branching on a success check.
+                               A successful AXPress returns immediately WITHOUT
+                               also firing the synthetic click — firing a click
+                               after AX already opened the menu would risk
+                               dismissing it or mis-triggering a menu item
+                               (decided during final review, 2026-07-01; this
+                               supersedes an earlier draft that fired the
+                               fallback unconditionally). The residual risk is an
+                               AX "success" on a wrong element short-circuiting
+                               the fallback — accepted, to watch during hardware
+                               testing.
 ```
 
 ### Data flow
@@ -147,8 +153,8 @@ cursor enters NotchPanel bounds
   → NotchPanel renders one button per crushed item, image = snapshot
   → user clicks a button
       → StatusItemForwarder.forward(to: item.frame)
-          → AXUIElementPerformAction(kAXPressAction), then
-          → CGEvent leftMouseDown/Up via postToPid (always, as a follow-up)
+          → AXUIElementPerformAction(kAXPressAction); if it succeeds, return
+          → else CGEvent leftMouseDown/Up via postToPid (fallback only)
   → cursor leaves panel bounds → NotchViewModel.state = .closed
 ```
 
