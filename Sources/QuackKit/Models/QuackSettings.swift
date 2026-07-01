@@ -23,6 +23,8 @@ public struct QuackSettings: Codable, Equatable, Sendable {
     public var windowPinchCloseEnabled: Bool
     /// Show CPU temperature (with a flame icon) in the menu bar.
     public var cpuTemperatureEnabled: Bool
+    /// Reveal menu-bar icons hidden behind the MacBook notch in a hover panel.
+    public var notchRevealEnabled: Bool
     /// Hide the duck icon from the menu bar.
     public var hideDuckIcon: Bool
     /// Fire a "join now" reminder at the meeting's start time.
@@ -68,6 +70,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         dockPinchQuitEnabled: Bool = false,
         windowPinchCloseEnabled: Bool = false,
         cpuTemperatureEnabled: Bool = false,
+        notchRevealEnabled: Bool = false,
         hideDuckIcon: Bool = false,
         remindAtStart: Bool = true,
         temperatureFahrenheit: Bool = false,
@@ -94,6 +97,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         self.dockPinchQuitEnabled = dockPinchQuitEnabled
         self.windowPinchCloseEnabled = windowPinchCloseEnabled
         self.cpuTemperatureEnabled = cpuTemperatureEnabled
+        self.notchRevealEnabled = notchRevealEnabled
         self.hideDuckIcon = hideDuckIcon
         self.remindAtStart = remindAtStart
         self.temperatureFahrenheit = temperatureFahrenheit
@@ -133,6 +137,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         dockPinchQuitEnabled = v(.dockPinchQuitEnabled, d.dockPinchQuitEnabled)
         windowPinchCloseEnabled = v(.windowPinchCloseEnabled, d.windowPinchCloseEnabled)
         cpuTemperatureEnabled = v(.cpuTemperatureEnabled, d.cpuTemperatureEnabled)
+        notchRevealEnabled = v(.notchRevealEnabled, d.notchRevealEnabled)
         hideDuckIcon = v(.hideDuckIcon, d.hideDuckIcon)
         remindAtStart = v(.remindAtStart, d.remindAtStart)
         temperatureFahrenheit = v(.temperatureFahrenheit, d.temperatureFahrenheit)

@@ -55,4 +55,23 @@ import Foundation
         c.cancel()
         #expect(published == 2)
     }
+
+    @Test func notchRevealDefaultsOff() {
+        #expect(!QuackSettings().notchRevealEnabled)
+    }
+
+    @Test func notchRevealDecodesFromOldBlobAsDefault() throws {
+        // A settings blob persisted before this field existed.
+        let json = #"{"brightnessEnabled": true}"#.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(QuackSettings.self, from: json)
+        #expect(!decoded.notchRevealEnabled)   // missing key -> default false
+    }
+
+    @Test func notchRevealFeatureFollowsFlag() {
+        var s = QuackSettings()
+        s.notchRevealEnabled = true
+        #expect(Feature.notchReveal.isEnabled(in: s))
+        s.notchRevealEnabled = false
+        #expect(!Feature.notchReveal.isEnabled(in: s))
+    }
 }
