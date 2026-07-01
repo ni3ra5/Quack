@@ -55,4 +55,22 @@ import Foundation
         c.cancel()
         #expect(published == 2)
     }
+
+    @Test func notchMediaDefaultsOff() {
+        #expect(!QuackSettings().notchMediaEnabled)
+    }
+
+    @Test func notchMediaDecodesFromOldBlobAsDefault() throws {
+        let json = #"{"brightnessEnabled": true}"#.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(QuackSettings.self, from: json)
+        #expect(!decoded.notchMediaEnabled)
+    }
+
+    @Test func notchMediaFeatureFollowsFlag() {
+        var s = QuackSettings()
+        s.notchMediaEnabled = true
+        #expect(Feature.notchMedia.isEnabled(in: s))
+        s.notchMediaEnabled = false
+        #expect(!Feature.notchMedia.isEnabled(in: s))
+    }
 }
