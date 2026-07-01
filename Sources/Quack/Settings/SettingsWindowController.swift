@@ -20,11 +20,15 @@ final class SettingsWindowController {
     private func buildWindow(env: AppEnvironment) {
         let hosting = NSHostingController(rootView: SettingsRootView().environmentObject(env))
         let window = NSWindow(contentViewController: hosting)
-        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.title = "Quack Settings"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
+        // Resizable within sane bounds; the SwiftUI root sets its own ideal size.
+        window.setContentSize(NSSize(width: 780, height: 640))
+        window.contentMinSize = NSSize(width: 720, height: 560)
+        window.contentMaxSize = NSSize(width: 1100, height: 1000)
         window.center()
         self.window = window
     }
