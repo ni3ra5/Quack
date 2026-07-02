@@ -40,6 +40,44 @@ mkdir -p "${APP_DIR}/Contents/MacOS"
 mkdir -p "${APP_DIR}/Contents/Resources"
 
 cp "${BUILD_DIR}/${APP_NAME}" "${APP_DIR}/Contents/MacOS/${APP_NAME}"
+
+# Vendored MediaRemoteAdapter: copy its dynamic lib + resource bundle so the
+# perl adapter can locate run.pl (Bundle.module) and the dylib
+# (Bundle(for:).executablePath) at runtime.
+#
+# MediaRemoteAdapter is built by the local Sources/MediaRemoteAdapterPkg
+# sub-package (see its Package.swift for why), which SwiftPM links dynamically
+# into Quack via @rpath instead of embedding it statically — so these
+# artifacts are real build products, not optional:
+#   - libMediaRemoteAdapter.dylib                       (the dynamic library)
+#   - MediaRemoteAdapterPkg_MediaRemoteAdapter.bundle    (Bundle.module's
+#     resources, prefixed with the *sub-package's* name, not Quack's)
+FW_DIR="${APP_DIR}/Contents/Frameworks"
+mkdir -p "${FW_DIR}"
+
+DYLIB="${BUILD_DIR}/libMediaRemoteAdapter.dylib"
+RESOURCE_BUNDLE="${BUILD_DIR}/MediaRemoteAdapterPkg_MediaRemoteAdapter.bundle"
+
+if [ ! -e "${DYLIB}" ]; then
+    echo "✗ ${DYLIB} not found — MediaRemoteAdapter didn't build as a dynamic library." >&2
+    exit 1
+fi
+if [ ! -e "${RESOURCE_BUNDLE}" ]; then
+    echo "✗ ${RESOURCE_BUNDLE} not found — run.pl won't be resolvable via Bundle.module at runtime." >&2
+    exit 1
+fi
+
+cp "${DYLIB}" "${FW_DIR}/"
+cp -R "${RESOURCE_BUNDLE}" "${APP_DIR}/Contents/Resources/"
+
+# SwiftPM already adds an rpath to the build directory for local development;
+# add the app-relative one too so the installed bundle finds the dylib
+# regardless of where it was copied from. Harmless no-op if already present.
+install_name_tool -add_rpath "@executable_path/../Frameworks" "${APP_DIR}/Contents/MacOS/${APP_NAME}" 2>/dev/null || true
+
+echo "▸ Bundled MediaRemoteAdapter dylib into ${FW_DIR}"
+echo "▸ Bundled MediaRemoteAdapter resources into ${APP_DIR}/Contents/Resources"
+
 cp "Resources/Info.plist" "${APP_DIR}/Contents/Info.plist"
 printf 'APPL????' > "${APP_DIR}/Contents/PkgInfo"
 

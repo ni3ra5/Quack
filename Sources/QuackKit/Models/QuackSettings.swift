@@ -23,8 +23,8 @@ public struct QuackSettings: Codable, Equatable, Sendable {
     public var windowPinchCloseEnabled: Bool
     /// Show CPU temperature (with a flame icon) in the menu bar.
     public var cpuTemperatureEnabled: Bool
-    /// Reveal menu-bar icons hidden behind the MacBook notch in a hover panel.
-    public var notchRevealEnabled: Bool
+    /// Dynamic notch media player controls.
+    public var notchMediaEnabled: Bool
     /// Hide the duck icon from the menu bar.
     public var hideDuckIcon: Bool
     /// Fire a "join now" reminder at the meeting's start time.
@@ -58,6 +58,11 @@ public struct QuackSettings: Codable, Equatable, Sendable {
     /// 0…1; scales the velocity threshold needed to recognize a swipe.
     public var swipeSensitivity: Double
 
+    // MARK: Appearance
+    /// UI appearance: "system" (follow macOS), "light", or "dark".
+    /// See `AppAppearance`.
+    public var appearance: String
+
     public init(
         calendarEnabled: Bool = true,
         remindersEnabled: Bool = true,
@@ -70,7 +75,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         dockPinchQuitEnabled: Bool = false,
         windowPinchCloseEnabled: Bool = false,
         cpuTemperatureEnabled: Bool = false,
-        notchRevealEnabled: Bool = false,
+        notchMediaEnabled: Bool = false,
         hideDuckIcon: Bool = false,
         remindAtStart: Bool = true,
         temperatureFahrenheit: Bool = false,
@@ -84,7 +89,8 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         brightnessStepPercent: Int = 10,
         dimInactiveDisplay: Bool = false,
         displayBrightness: [String: Double] = [:],
-        swipeSensitivity: Double = 0.5
+        swipeSensitivity: Double = 0.5,
+        appearance: String = AppAppearance.system.rawValue
     ) {
         self.calendarEnabled = calendarEnabled
         self.remindersEnabled = remindersEnabled
@@ -97,7 +103,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         self.dockPinchQuitEnabled = dockPinchQuitEnabled
         self.windowPinchCloseEnabled = windowPinchCloseEnabled
         self.cpuTemperatureEnabled = cpuTemperatureEnabled
-        self.notchRevealEnabled = notchRevealEnabled
+        self.notchMediaEnabled = notchMediaEnabled
         self.hideDuckIcon = hideDuckIcon
         self.remindAtStart = remindAtStart
         self.temperatureFahrenheit = temperatureFahrenheit
@@ -112,6 +118,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         self.dimInactiveDisplay = dimInactiveDisplay
         self.displayBrightness = displayBrightness
         self.swipeSensitivity = swipeSensitivity
+        self.appearance = appearance
     }
 
     // Custom decoding so that adding a new field never breaks an existing
@@ -137,7 +144,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         dockPinchQuitEnabled = v(.dockPinchQuitEnabled, d.dockPinchQuitEnabled)
         windowPinchCloseEnabled = v(.windowPinchCloseEnabled, d.windowPinchCloseEnabled)
         cpuTemperatureEnabled = v(.cpuTemperatureEnabled, d.cpuTemperatureEnabled)
-        notchRevealEnabled = v(.notchRevealEnabled, d.notchRevealEnabled)
+        notchMediaEnabled = v(.notchMediaEnabled, d.notchMediaEnabled)
         hideDuckIcon = v(.hideDuckIcon, d.hideDuckIcon)
         remindAtStart = v(.remindAtStart, d.remindAtStart)
         temperatureFahrenheit = v(.temperatureFahrenheit, d.temperatureFahrenheit)
@@ -152,5 +159,6 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         dimInactiveDisplay = v(.dimInactiveDisplay, d.dimInactiveDisplay)
         displayBrightness = v(.displayBrightness, d.displayBrightness)
         swipeSensitivity = v(.swipeSensitivity, d.swipeSensitivity)
+        appearance = v(.appearance, d.appearance)
     }
 }

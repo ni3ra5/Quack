@@ -1,90 +1,143 @@
 import SwiftUI
 import QuackKit
 
-/// The feature groups shown as tabs in the settings window.
+/// The feature groups shown in the left sidebar. `general` is the schedule
+/// (agenda) view; `settings` holds the app-level preferences.
 enum SettingsTab: String, CaseIterable {
-    case general, calendar, display, temperature, windows, permissions
+    case general, calendar, temperature, display, windows, permissions, settings
 
     var title: String {
         switch self {
-        case .general: return "General"
+        case .general: return "Dashboard"
         case .calendar: return "Calendar"
         case .display: return "Display"
         case .temperature: return "CPU"
         case .windows: return "Windows"
         case .permissions: return "Permissions"
+        case .settings: return "Settings"
         }
     }
 
     var icon: String {
         switch self {
-        case .general: return "gearshape"
+        case .general: return "square.grid.2x2"
         case .calendar: return "calendar"
         case .display: return "sun.max"
         case .temperature: return "thermometer.medium"
         case .windows: return "macwindow.on.rectangle"
         case .permissions: return "lock.shield"
+        case .settings: return "gearshape"
         }
     }
 }
 
-/// The whole settings window: an app header (icon, name, description,
-/// launch-at-login), a tab strip, and the selected pane.
+/// Named groupings for the sidebar (CleanMyMac-style section headers). `General`
+/// sits alone at the top; `Settings` sits alone at the bottom.
+private enum SidebarGroup: String, CaseIterable {
+    case top = ""
+    case menuBar = "Menu Bar"
+    case controls = "Controls"
+    case system = "System"
+    case bottom = " "
+
+    var tabs: [SettingsTab] {
+        switch self {
+        case .top: return [.general]
+        case .menuBar: return [.calendar, .temperature]
+        case .controls: return [.display, .windows]
+        case .system: return [.permissions]
+        case .bottom: return [.settings]
+        }
+    }
+
+    /// Whether to render a visible header label (top/bottom are unlabeled).
+    var showsHeader: Bool { self != .top && self != .bottom }
+}
+
+/// The whole settings window: an immersive full-height sidebar (grouped nav,
+/// traffic-light-aware app title) on the left and the selected pane on the
+/// right. Uses `NavigationSplitView` so the sidebar material, selection
+/// highlight, and light/dark colors are all native and adapt to the appearance.
 struct SettingsRootView: View {
     @EnvironmentObject var env: AppEnvironment
 
+    private var selection: Binding<SettingsTab?> {
+        Binding(get: { env.settingsTab }, set: { if let new = $0 { env.settingsTab = new } })
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            tabStrip
-            Divider()
+        NavigationSplitView {
+            sidebar
+                .navigationSplitViewColumnWidth(min: 210, ideal: 224, max: 280)
+        } detail: {
             SettingsPane(tab: env.settingsTab)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 540, height: 640)
-        .font(.system(size: 14))   // bump the base text a little across the window
-        .background(Color(white: 0.07))
+        .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 740, idealWidth: 820, minHeight: 560, idealHeight: 660)
+        .font(.system(size: 14))
         .tint(.accentColor)
         .onAppear { env.permissions.refreshAll() }
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable().frame(width: 56, height: 56)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Quack").font(.title2).bold()
-                Text("All shortcuts in one app. Quack Quack!")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    private var sidebar: some View {
+        List(selection: selection) {
+            ForEach(SidebarGroup.allCases, id: \.self) { group in
+                Section {
+                    ForEach(group.tabs, id: \.self) { tab in
+                        Label(tab.title, systemImage: tab.icon)
+                            .tag(tab)
+                    }
+                } header: {
+                    if group.showsHeader { Text(group.rawValue) }
+                }
             }
-            Spacer(minLength: 8)
         }
-        .padding(.horizontal, 16).padding(.vertical, 14)
+        .listStyle(.sidebar)
+        // Immersive: the sidebar material runs full-height under the transparent
+        // title bar; this inset keeps the static app name beside the traffic
+        // lights without pushing the list content under them.
+        .safeAreaInset(edge: .top, spacing: 0) { appIdentity }
+        // Quit is always reachable, pinned to the very bottom of the sidebar.
+        .safeAreaInset(edge: .bottom, spacing: 0) { quitFooter }
     }
 
-    private var tabStrip: some View {
-        HStack(spacing: 6) {
-            ForEach(SettingsTab.allCases, id: \.self) { item in
-                Button { env.settingsTab = item } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: item.icon).font(.system(size: 17))
-                        Text(item.title).font(.system(size: 12))
-                    }
-                    .frame(width: 78, height: 50)
-                    .foregroundStyle(env.settingsTab == item ? Color.accentColor : Color.primary)
-                    .background(env.settingsTab == item ? Color.accentColor.opacity(0.18) : .clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .contentShape(Rectangle())
+    private var quitFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+            Button {
+                NSApp.terminate(nil)
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "power").font(.system(size: 13, weight: .semibold)).frame(width: 20)
+                    Text("Quit Quack").font(.system(size: 14))
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, 10).padding(.bottom, 10).padding(.top, 4)
+    }
+
+    private var appIdentity: some View {
+        HStack(spacing: 7) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable().frame(width: 18, height: 18)
+            Text("Quack").font(.system(size: 14, weight: .semibold))
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 78)   // clear the traffic-light cluster
+        .padding(.trailing, 12)
+        .frame(height: 28)       // align with the title-bar height
+        .padding(.top, 6).padding(.bottom, 8)
     }
 }
 
-/// One settings pane (a grouped Form).
+/// One settings pane. The `general` tab is the custom schedule view; every
+/// other tab is a grouped `Form`.
 struct SettingsPane: View {
     let tab: SettingsTab
     @EnvironmentObject var env: AppEnvironment
@@ -130,9 +183,9 @@ private struct CalendarSyncTip: View {
     }
 }
 
-// MARK: - General
+// MARK: - Settings (app-level preferences)
 
-private struct GeneralSection: View {
+private struct SettingsSection: View {
     @EnvironmentObject var env: AppEnvironment
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
 
@@ -146,12 +199,428 @@ private struct GeneralSection: View {
             Text("The dropdown and settings are still reachable from the meeting countdown and temperature items.")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
-        Section {
-            Button("Quit Quack") { NSApp.terminate(nil) }
+        Section("Appearance") {
+            Picker("Theme", selection: appearanceBinding) {
+                ForEach(AppAppearance.allCases) { mode in
+                    Label(mode.displayName, systemImage: mode.iconName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            Text("System follows your macOS Light/Dark setting and switches with it.")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
         }
       }
       .onAppear { launchAtLogin = LaunchAtLogin.isEnabled }
     }
+
+    /// Bridges the string-backed `appearance` setting to the `AppAppearance`
+    /// enum the picker uses. Persisting the change triggers the app-wide
+    /// re-apply wired up in `AppEnvironment`.
+    private var appearanceBinding: Binding<AppAppearance> {
+        let s = env.settingsStore
+        return Binding(
+            get: { AppAppearance.from(s.settings.appearance) },
+            set: { mode in s.update { $0.appearance = mode.rawValue } }
+        )
+    }
+}
+
+// MARK: - Dashboard (General tab)
+
+/// The Dashboard tab: a full-width Calendar card listing the next few events,
+/// then a grid of summary cards for the other feature areas. Each card opens
+/// its tab on click.
+private struct DashboardView: View {
+    @EnvironmentObject var env: AppEnvironment
+    private let columns = [GridItem(.adaptive(minimum: 250), spacing: 14)]
+
+    @State private var upcoming: [MeetingEvent] = []
+    @State private var tempC: Double = -1
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                DashCard(tab: .calendar) { calendarCardContent }
+                LazyVGrid(columns: columns, spacing: 14) {
+                    DashCard(tab: .temperature) { cpuSummary }
+                    DashCard(tab: .display) { displaySummary }
+                    DashCard(tab: .windows) { windowsSummary }
+                    DashCard(tab: .permissions) { permissionsSummary }
+                }
+            }
+            .padding(20)
+        }
+        .background(.background)
+        .onAppear { env.refreshCalendarNow() }
+        .task { await loadUpcoming() }
+        .task { await pollTemperature() }
+    }
+
+    // MARK: Calendar (expanded — next 5 events inline)
+
+    @ViewBuilder private var calendarCardContent: some View {
+        if env.permissions.status(for: .calendar) != .granted {
+            gist("Access needed", "Grant Calendar access", tint: .orange)
+        } else if upcoming.isEmpty {
+            gist("No upcoming meetings", "Nothing in the next two weeks")
+        } else {
+            VStack(spacing: 7) {
+                ForEach(upcoming) { miniRow($0) }
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private func miniRow(_ e: MeetingEvent) -> some View {
+        HStack(spacing: 9) {
+            Circle().fill(Color(hex: e.calendarColorHex) ?? .accentColor).frame(width: 7, height: 7)
+            Text(whenText(e))
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .frame(width: 118, alignment: .leading)
+            Text(e.title).font(.system(size: 13)).lineLimit(1)
+            Spacer(minLength: 4)
+            if e.conferencingURL != nil {
+                Image(systemName: "video.fill").font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+        }
+        .opacity(e.end <= env.now && !e.isInProgress(at: env.now) ? 0.5 : 1)
+    }
+
+    /// "2:30 PM" for today, "Fri 2:30 PM" otherwise; "All day" variants too.
+    private func whenText(_ e: MeetingEvent) -> String {
+        let today = Calendar.current.isDateInToday(e.start)
+        if e.isAllDay { return today ? "All day" : "\(Self.wday.string(from: e.start)) · All day" }
+        let t = Self.time.string(from: e.start)
+        return today ? t : "\(Self.wday.string(from: e.start)) \(t)"
+    }
+
+    private func loadUpcoming() async {
+        guard env.permissions.status(for: .calendar) == .granted else { return }
+        let now = env.now
+        let window = DateInterval(start: now, duration: 14 * 86_400)
+        let all = await env.events(in: window)
+        upcoming = Array(all.filter { $0.isAllDay || $0.end > now }.prefix(5))
+    }
+
+    private func pollTemperature() async {
+        while !Task.isCancelled {
+            tempC = await env.currentCPUTemperatureC()
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+        }
+    }
+
+    // MARK: CPU (live temperature)
+
+    @ViewBuilder private var cpuSummary: some View {
+        let s = env.settingsStore.settings
+        let f = s.temperatureFahrenheit
+        if tempC > 0 {
+            let v = f ? tempC * 9 / 5 + 32 : tempC
+            gist("\(Int(v.rounded()))°\(f ? "F" : "C")",
+                 s.cpuTemperatureEnabled ? "Showing in menu bar" : "Not in menu bar",
+                 tint: tempTint(tempC))
+        } else {
+            gist("Reading…", "Unit: \(f ? "Fahrenheit" : "Celsius")")
+        }
+    }
+
+    /// Green / orange / red by CPU temperature (°C), matching the menu-bar item.
+    private func tempTint(_ c: Double) -> Color {
+        if c >= 85 { return .red }
+        if c >= 70 { return .orange }
+        return .green
+    }
+
+    @ViewBuilder private var displaySummary: some View {
+        let s = env.settingsStore.settings
+        if s.brightnessEnabled {
+            let n = env.diagnostics.externalDisplayCount
+            gist("F1 / F2 routing on", "\(n) external display\(n == 1 ? "" : "s")", tint: .green)
+        } else {
+            gist("Off", "Control external brightness with F1 / F2")
+        }
+    }
+
+    private var windowsSummary: some View {
+        let s = env.settingsStore.settings
+        var on: [String] = []
+        if s.windowShortcutsEnabled { on.append("Shortcuts") }
+        if s.windowSwipeEnabled { on.append("Swipe") }
+        if s.dockPinchQuitEnabled || s.windowPinchCloseEnabled { on.append("Pinch") }
+        return Group {
+            if on.isEmpty {
+                gist("All off", "Shortcuts, swipe & pinch gestures")
+            } else {
+                gist(on.joined(separator: " · ") + " on", "Window management", tint: .green)
+            }
+        }
+    }
+
+    @ViewBuilder private var permissionsSummary: some View {
+        let kinds = PermissionKind.allCases
+        let granted = kinds.filter { env.permissions.status(for: $0) == .granted }.count
+        let denied = kinds.contains { env.permissions.status(for: $0) == .denied }
+        let all = granted == kinds.count
+        gist("\(granted) of \(kinds.count) granted",
+             denied ? "Some access denied" : (all ? "All set" : "Tap to manage"),
+             tint: all ? .green : .orange)
+    }
+
+    private func gist(_ primary: String, _ secondary: String?, tint: Color = .primary) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(primary).font(.system(size: 13, weight: .medium)).foregroundStyle(tint).lineLimit(1)
+            if let secondary {
+                Text(secondary).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
+            }
+        }
+    }
+
+    private static let time: DateFormatter = {
+        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none; return f
+    }()
+    private static let wday: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "EEE"; return f
+    }()
+}
+
+/// A single dashboard card: feature icon + title + chevron over a gist. Opens
+/// the matching tab when clicked.
+private struct DashCard<Content: View>: View {
+    @EnvironmentObject var env: AppEnvironment
+    let tab: SettingsTab
+    @ViewBuilder var content: () -> Content
+    @State private var hovering = false
+
+    var body: some View {
+        Button { withAnimation(.easeInOut(duration: 0.15)) { env.settingsTab = tab } } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: tab.icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.accentColor).frame(width: 20)
+                    Text(tab.title).font(.system(size: 15, weight: .semibold))
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(.tertiary)
+                }
+                content().frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.primary.opacity(hovering ? 0.09 : 0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.06))
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .instantHover($hovering)
+    }
+}
+
+// MARK: - Calendar agenda (Calendar tab)
+
+/// A month-at-a-time agenda (Google "Schedule" style): a scrolling list grouped
+/// by day, each day a date column beside its events. Pages by month and jumps
+/// back to today. Reads events via `AppEnvironment.events(in:)`.
+private struct CalendarAgendaView: View {
+    @EnvironmentObject var env: AppEnvironment
+    @State private var anchor = Calendar.current.startOfDay(for: Date())
+    @State private var events: [MeetingEvent] = []
+    @State private var loading = false
+
+    private let cal = Calendar.current
+
+    private var monthInterval: DateInterval {
+        cal.dateInterval(of: .month, for: anchor) ?? DateInterval(start: anchor, duration: 30 * 86_400)
+    }
+
+    private var isCurrentMonth: Bool {
+        cal.isDate(anchor, equalTo: Date(), toGranularity: .month)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            ScrollView { content }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(.background)
+        .task(id: anchor) { await load() }
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Button("Today") { withAnimation { anchor = cal.startOfDay(for: Date()) } }
+                .controlSize(.large)
+                .disabled(isCurrentMonth)
+            HStack(spacing: 2) {
+                stepMonth("chevron.left", by: -1)
+                stepMonth("chevron.right", by: 1)
+            }
+            Text(Self.month.string(from: anchor))
+                .font(.system(size: 19, weight: .semibold))
+            Spacer()
+        }
+        .padding(.horizontal, 20).padding(.vertical, 14)
+    }
+
+    private func stepMonth(_ icon: String, by months: Int) -> some View {
+        Button {
+            if let next = cal.date(byAdding: .month, value: months, to: anchor) {
+                withAnimation(.easeOut(duration: 0.15)) { anchor = next }
+            }
+        } label: {
+            Image(systemName: icon).font(.system(size: 14, weight: .semibold)).frame(width: 28, height: 26)
+        }
+        .buttonStyle(.borderless)
+    }
+
+    // MARK: Content
+
+    @ViewBuilder
+    private var content: some View {
+        if env.permissions.status(for: .calendar) != .granted {
+            emptyState(icon: "calendar.badge.exclamationmark",
+                       title: "Calendar access needed",
+                       subtitle: "Grant Calendar access to see your schedule.",
+                       action: ("Grant", { env.requestCalendarAccess() }))
+        } else if loading && events.isEmpty {
+            ProgressView().controlSize(.small).frame(maxWidth: .infinity).padding(.top, 44)
+        } else if sections.isEmpty {
+            emptyState(icon: "calendar",
+                       title: "No events",
+                       subtitle: "Nothing scheduled this month.",
+                       action: nil)
+        } else {
+            LazyVStack(spacing: 0) {
+                ForEach(sections) { section in
+                    dayRow(section)
+                    Divider().padding(.leading, 84)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private func dayRow(_ section: DaySection) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            dayColumn(section.dayStart)
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(section.events) { AgendaEventRow(event: $0, now: env.now) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private func dayColumn(_ day: Date) -> some View {
+        let isToday = cal.isDateInToday(day)
+        return VStack(spacing: 3) {
+            Text("\(cal.component(.day, from: day))")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(isToday ? .white : .primary)
+                .frame(width: 32, height: 32)
+                .background(isToday ? AnyView(Circle().fill(Color.accentColor)) : AnyView(Color.clear))
+            Text(Self.dayLabel.string(from: day).uppercased())
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(isToday ? Color.accentColor : .secondary)
+        }
+        .frame(width: 56)
+        .padding(.top, 8)
+    }
+
+    private func emptyState(icon: String, title: String, subtitle: String,
+                            action: (String, () -> Void)?) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon).font(.system(size: 30)).foregroundStyle(.tertiary)
+            Text(title).font(.system(size: 15, weight: .semibold))
+            Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            if let action { Button(action.0) { action.1() }.padding(.top, 4) }
+        }
+        .frame(maxWidth: .infinity).padding(.top, 52).padding(.horizontal, 24)
+    }
+
+    /// Events grouped into day buckets (all events in the month, including past
+    /// ones, so navigating back shows history). All-day events sort first.
+    private var sections: [DaySection] {
+        let grouped = Dictionary(grouping: events) { cal.startOfDay(for: $0.start) }
+        return grouped
+            .map { day, evs in
+                DaySection(dayStart: day, events: evs.sorted { a, b in
+                    a.isAllDay != b.isAllDay ? a.isAllDay : a.start < b.start
+                })
+            }
+            .sorted { $0.dayStart < $1.dayStart }
+    }
+
+    private func load() async {
+        loading = true
+        events = await env.events(in: monthInterval)
+        loading = false
+    }
+
+    private static let month: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "LLLL yyyy"; return f
+    }()
+    private static let dayLabel: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "MMM, EEE"; return f
+    }()
+}
+
+/// One agenda line: calendar-color dot, time range, title, location, join icon.
+private struct AgendaEventRow: View {
+    let event: MeetingEvent
+    let now: Date
+    @State private var hovering = false
+
+    private var isPast: Bool { event.end <= now && !event.isInProgress(at: now) }
+
+    var body: some View {
+        Button { if let u = event.conferencingURL { NSWorkspace.shared.open(u) } } label: {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(Color(hex: event.calendarColorHex) ?? .accentColor)
+                    .frame(width: 10, height: 10)
+                Text(timeText)
+                    .font(.system(size: 13)).foregroundStyle(.secondary)
+                    .frame(width: 108, alignment: .leading)
+                Text(event.title).font(.system(size: 14)).lineLimit(1)
+                if let loc = event.location, !loc.isEmpty {
+                    Text(loc).font(.system(size: 12)).foregroundStyle(.tertiary).lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                if event.conferencingURL != nil {
+                    Image(systemName: "video.fill").font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 7).fill(hovering ? Color.primary.opacity(0.07) : .clear))
+            .contentShape(Rectangle())
+            .opacity(isPast ? 0.5 : 1)
+        }
+        .buttonStyle(.plain)
+        .instantHover($hovering)
+    }
+
+    private var timeText: String {
+        if event.isAllDay { return "All day" }
+        return "\(Self.time.string(from: event.start)) – \(Self.time.string(from: event.end))"
+    }
+
+    private static let time: DateFormatter = {
+        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none; return f
+    }()
 }
 
 // MARK: - Calendar

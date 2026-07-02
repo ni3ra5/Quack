@@ -9,3 +9,6 @@ build/
 # macOS
 .DS_Store
 *.xcuserstate
+
+# SDD scratch (briefs, reports, review packages, ledger) — not part of the repo
+.superpowers/
