@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import Combine
 import QuackKit
+import CSMC
 
 /// Central composition root. Owns the settings, the meeting store, every live
 /// service, and the coordinator that starts/stops services as flags flip.
@@ -93,6 +94,16 @@ final class AppEnvironment: ObservableObject {
 
         permissions.refreshAll()
         coordinator.activate()
+
+        // Apply the saved appearance app-wide now, and re-apply whenever it
+        // changes. Setting `NSApp.appearance` affects the settings window, the
+        // dropdown, toasts and the HUD together.
+        applyAppearance(settings.settings.appearance)
+        settings.$settings
+            .map(\.appearance)
+            .removeDuplicates()
+            .sink { [weak self] in self?.applyAppearance($0) }
+            .store(in: &cancellables)
 
         let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
             // Fires on the main run loop it's added to.
@@ -206,6 +217,41 @@ final class AppEnvironment: ObservableObject {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preferences.internetaccounts") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    /// Fetches every event overlapping `window` for the agenda view, honoring the
+    /// user's calendar selection. Returns them sorted by start time with
+    /// conferencing links resolved. Empty on no access/error.
+    func events(in window: DateInterval) async -> [MeetingEvent] {
+        let fetched = (try? await eventKitProvider.fetchEvents(window: window)) ?? []
+        let s = settingsStore.settings
+        let ids = s.syncAllCalendars ? [] : s.selectedCalendarIDs
+        return MeetingSelection.filter(fetched, window: window, calendarIDs: ids)
+            .map { $0.withConferencingURL(MeetingURLParser.joinURL(for: $0)) }
+            .sorted { $0.start < $1.start }
+    }
+
+    /// Reads the current CPU temperature (°C) off the main thread — the first
+    /// SMC read enumerates keys, so never do it on the main actor. Returns <= 0
+    /// when unsupported or unreadable.
+    nonisolated func currentCPUTemperatureC() async -> Double {
+        await withCheckedContinuation { cont in
+            DispatchQueue.global(qos: .utility).async {
+                cont.resume(returning: csmc_cpu_temperature())
+            }
+        }
+    }
+
+    /// Maps the stored appearance to an `NSAppearance` and applies it to the
+    /// whole app. `.system` clears the override so the app tracks macOS live.
+    func applyAppearance(_ raw: String) {
+        let appearance: NSAppearance?
+        switch AppAppearance.from(raw) {
+        case .system: appearance = nil
+        case .light: appearance = NSAppearance(named: .aqua)
+        case .dark: appearance = NSAppearance(named: .darkAqua)
+        }
+        NSApp.appearance = appearance
     }
 
     /// Applies a brightness change immediately and persists it.

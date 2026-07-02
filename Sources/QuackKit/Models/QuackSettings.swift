@@ -56,6 +56,11 @@ public struct QuackSettings: Codable, Equatable, Sendable {
     /// 0…1; scales the velocity threshold needed to recognize a swipe.
     public var swipeSensitivity: Double
 
+    // MARK: Appearance
+    /// UI appearance: "system" (follow macOS), "light", or "dark".
+    /// See `AppAppearance`.
+    public var appearance: String
+
     public init(
         calendarEnabled: Bool = true,
         remindersEnabled: Bool = true,
@@ -81,7 +86,8 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         brightnessStepPercent: Int = 10,
         dimInactiveDisplay: Bool = false,
         displayBrightness: [String: Double] = [:],
-        swipeSensitivity: Double = 0.5
+        swipeSensitivity: Double = 0.5,
+        appearance: String = AppAppearance.system.rawValue
     ) {
         self.calendarEnabled = calendarEnabled
         self.remindersEnabled = remindersEnabled
@@ -108,6 +114,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         self.dimInactiveDisplay = dimInactiveDisplay
         self.displayBrightness = displayBrightness
         self.swipeSensitivity = swipeSensitivity
+        self.appearance = appearance
     }
 
     // Custom decoding so that adding a new field never breaks an existing
@@ -147,5 +154,6 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         dimInactiveDisplay = v(.dimInactiveDisplay, d.dimInactiveDisplay)
         displayBrightness = v(.displayBrightness, d.displayBrightness)
         swipeSensitivity = v(.swipeSensitivity, d.swipeSensitivity)
+        appearance = v(.appearance, d.appearance)
     }
 }
