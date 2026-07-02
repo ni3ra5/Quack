@@ -33,8 +33,10 @@ struct NotchMediaView: View {
                     }
                 }
             }
-            .padding(.horizontal, 16).padding(.vertical, 8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.top, model.contentTopInset + 8)
+            .padding(.bottom, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(NotchShape().fill(Color.black))
             .foregroundStyle(.white)
         } else {
