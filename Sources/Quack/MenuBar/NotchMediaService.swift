@@ -16,12 +16,8 @@ final class NotchMediaService: NSObject, ManagedService {
     private var cancellable: AnyCancellable?
     private var wired = false
 
-    // Sized relative to the REAL, per-screen notch height (layout.cocoaNotchRect.height,
-    // e.g. 32pt) rather than a guessed constant — a fixed 6pt collapsed height sat
-    // entirely inside the notch's own dead zone (unreachable/invisible), which is why
-    // hover was nearly impossible to trigger and content rendered under the cutout.
-    private let hoverMargin: CGFloat = 16         // visible margin below the notch, for an easy hover target
-    private let contentHeight: CGFloat = 52       // room for art + text + controls, below the cutout
+    private let hoverMargin: CGFloat = 24         // hover strip directly below the notch
+    private let contentHeight: CGFloat = 52       // room for art + text + controls
     private let expandedWidth: CGFloat = 320
 
     func start() {
@@ -84,23 +80,20 @@ final class NotchMediaService: NSObject, ManagedService {
         reposition()
     }
 
-    /// Positions the panel centered under the notch. Both states are sized off the
-    /// REAL notch height for this screen (`cocoaNotchRect.height`, e.g. 32pt) so the
-    /// hover target and the player content both start below the physical cutout,
-    /// never inside it. Collapsed = the cutout height + a visible margin (an actually
-    /// reachable hover target). Expanded = the cutout height + room for the player.
-    /// Cocoa (Y-up): top-anchored at the screen top.
+    /// Positions the panel so its top edge is anchored at the BOTTOM of the notch
+    /// (`cocoaNotchRect.minY`). The panel hangs downward from there, so content is
+    /// NEVER behind the physical cutout regardless of how safeAreaInsets.top varies
+    /// across models. NotchShape's flat top corners visually connect to the notch,
+    /// preserving the "notch grows downward" effect.
     private func reposition() {
         guard let layout = reader.currentLayout(), let panel else { return }
-        let notchHeight = layout.cocoaNotchRect.height
-        let collapsedHeight = notchHeight + hoverMargin
-        let expandedHeight = notchHeight + contentHeight
-        let width = model.isOpen ? expandedWidth : max(layout.span.width, 120)
-        let height = model.isOpen ? expandedHeight : collapsedHeight
+        let notchBottom = layout.cocoaNotchRect.minY   // Cocoa Y-up: bottom of the notch
+        let width = model.isOpen ? expandedWidth : max(layout.cocoaNotchRect.width, 120)
+        let height = model.isOpen ? contentHeight : hoverMargin
         let centerX = layout.cocoaNotchRect.midX
         let originX = centerX - width / 2
-        let originY = layout.screen.frame.maxY - height   // hangs down from the top
-        model.contentTopInset = notchHeight
+        let originY = notchBottom - height             // panel hangs DOWN from notch bottom
+        model.contentTopInset = 0                      // panel top IS notch bottom; 8pt padding in view
         panel.setFrame(NSRect(x: originX, y: originY, width: width, height: height), display: true)
         panel.orderFrontRegardless()
     }
