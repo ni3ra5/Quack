@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import Combine
 import QuackKit
+import CSMC
 
 /// Central composition root. Owns the settings, the meeting store, every live
 /// service, and the coordinator that starts/stops services as flags flip.
@@ -228,6 +229,17 @@ final class AppEnvironment: ObservableObject {
         return MeetingSelection.filter(fetched, window: window, calendarIDs: ids)
             .map { $0.withConferencingURL(MeetingURLParser.joinURL(for: $0)) }
             .sorted { $0.start < $1.start }
+    }
+
+    /// Reads the current CPU temperature (°C) off the main thread — the first
+    /// SMC read enumerates keys, so never do it on the main actor. Returns <= 0
+    /// when unsupported or unreadable.
+    nonisolated func currentCPUTemperatureC() async -> Double {
+        await withCheckedContinuation { cont in
+            DispatchQueue.global(qos: .utility).async {
+                cont.resume(returning: csmc_cpu_temperature())
+            }
+        }
     }
 
     /// Maps the stored appearance to an `NSAppearance` and applies it to the

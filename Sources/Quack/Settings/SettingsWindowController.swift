@@ -21,7 +21,7 @@ final class SettingsWindowController {
         let hosting = NSHostingController(rootView: SettingsRootView().environmentObject(env))
         let window = NSWindow(contentViewController: hosting)
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.title = "Quack Settings"
+        window.title = ""
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false

@@ -8,7 +8,7 @@ enum SettingsTab: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .general: return "General"
+        case .general: return "Dashboard"
         case .calendar: return "Calendar"
         case .display: return "Display"
         case .temperature: return "CPU"
@@ -98,6 +98,28 @@ struct SettingsRootView: View {
         // title bar; this inset keeps the static app name beside the traffic
         // lights without pushing the list content under them.
         .safeAreaInset(edge: .top, spacing: 0) { appIdentity }
+        // Quit is always reachable, pinned to the very bottom of the sidebar.
+        .safeAreaInset(edge: .bottom, spacing: 0) { quitFooter }
+    }
+
+    private var quitFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+            Button {
+                NSApp.terminate(nil)
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "power").font(.system(size: 13, weight: .semibold)).frame(width: 20)
+                    Text("Quit Quack").font(.system(size: 14))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10).padding(.bottom, 10).padding(.top, 4)
     }
 
     private var appIdentity: some View {
@@ -194,9 +216,6 @@ private struct SettingsSection: View {
             Text("System follows your macOS Light/Dark setting and switches with it.")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
-        Section {
-            Button("Quit Quack") { NSApp.terminate(nil) }
-        }
       }
       .onAppear { launchAtLogin = LaunchAtLogin.isEnabled }
     }
@@ -215,49 +234,108 @@ private struct SettingsSection: View {
 
 // MARK: - Dashboard (General tab)
 
-/// The General tab: a grid of summary cards, one per feature area. Each card
-/// shows the gist of that submenu's current state and opens it on click.
+/// The Dashboard tab: a full-width Calendar card listing the next few events,
+/// then a grid of summary cards for the other feature areas. Each card opens
+/// its tab on click.
 private struct DashboardView: View {
     @EnvironmentObject var env: AppEnvironment
     private let columns = [GridItem(.adaptive(minimum: 250), spacing: 14)]
 
+    @State private var upcoming: [MeetingEvent] = []
+    @State private var tempC: Double = -1
+
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 14) {
-                DashCard(tab: .calendar) { calendarSummary }
-                DashCard(tab: .temperature) { cpuSummary }
-                DashCard(tab: .display) { displaySummary }
-                DashCard(tab: .windows) { windowsSummary }
-                DashCard(tab: .permissions) { permissionsSummary }
+            VStack(spacing: 14) {
+                DashCard(tab: .calendar) { calendarCardContent }
+                LazyVGrid(columns: columns, spacing: 14) {
+                    DashCard(tab: .temperature) { cpuSummary }
+                    DashCard(tab: .display) { displaySummary }
+                    DashCard(tab: .windows) { windowsSummary }
+                    DashCard(tab: .permissions) { permissionsSummary }
+                }
             }
             .padding(20)
         }
         .background(.background)
         .onAppear { env.refreshCalendarNow() }
+        .task { await loadUpcoming() }
+        .task { await pollTemperature() }
     }
 
-    // MARK: Per-feature gists
+    // MARK: Calendar (expanded — next 5 events inline)
 
-    @ViewBuilder private var calendarSummary: some View {
+    @ViewBuilder private var calendarCardContent: some View {
         if env.permissions.status(for: .calendar) != .granted {
             gist("Access needed", "Grant Calendar access", tint: .orange)
-        } else if let m = env.meetingStore.currentOrNext {
-            let rel = m.isInProgress(at: env.now)
-                ? "In progress"
-                : "in \(CountdownFormatter.relative(m.start.timeIntervalSince(env.now)))"
-            gist(m.title, "\(rel) · \(env.meetingStore.upcoming.count) upcoming")
+        } else if upcoming.isEmpty {
+            gist("No upcoming meetings", "Nothing in the next two weeks")
         } else {
-            gist("No upcoming meetings", "Nothing in the next 24 hours")
+            VStack(spacing: 7) {
+                ForEach(upcoming) { miniRow($0) }
+            }
+            .padding(.top, 2)
         }
     }
+
+    private func miniRow(_ e: MeetingEvent) -> some View {
+        HStack(spacing: 9) {
+            Circle().fill(Color(hex: e.calendarColorHex) ?? .accentColor).frame(width: 7, height: 7)
+            Text(whenText(e))
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .frame(width: 118, alignment: .leading)
+            Text(e.title).font(.system(size: 13)).lineLimit(1)
+            Spacer(minLength: 4)
+            if e.conferencingURL != nil {
+                Image(systemName: "video.fill").font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+        }
+        .opacity(e.end <= env.now && !e.isInProgress(at: env.now) ? 0.5 : 1)
+    }
+
+    /// "2:30 PM" for today, "Fri 2:30 PM" otherwise; "All day" variants too.
+    private func whenText(_ e: MeetingEvent) -> String {
+        let today = Calendar.current.isDateInToday(e.start)
+        if e.isAllDay { return today ? "All day" : "\(Self.wday.string(from: e.start)) · All day" }
+        let t = Self.time.string(from: e.start)
+        return today ? t : "\(Self.wday.string(from: e.start)) \(t)"
+    }
+
+    private func loadUpcoming() async {
+        guard env.permissions.status(for: .calendar) == .granted else { return }
+        let now = env.now
+        let window = DateInterval(start: now, duration: 14 * 86_400)
+        let all = await env.events(in: window)
+        upcoming = Array(all.filter { $0.isAllDay || $0.end > now }.prefix(5))
+    }
+
+    private func pollTemperature() async {
+        while !Task.isCancelled {
+            tempC = await env.currentCPUTemperatureC()
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+        }
+    }
+
+    // MARK: CPU (live temperature)
 
     @ViewBuilder private var cpuSummary: some View {
         let s = env.settingsStore.settings
-        if s.cpuTemperatureEnabled {
-            gist("Showing in menu bar", "Unit: \(s.temperatureFahrenheit ? "Fahrenheit" : "Celsius")", tint: .green)
+        let f = s.temperatureFahrenheit
+        if tempC > 0 {
+            let v = f ? tempC * 9 / 5 + 32 : tempC
+            gist("\(Int(v.rounded()))°\(f ? "F" : "C")",
+                 s.cpuTemperatureEnabled ? "Showing in menu bar" : "Not in menu bar",
+                 tint: tempTint(tempC))
         } else {
-            gist("Off", "Show CPU temperature in the menu bar")
+            gist("Reading…", "Unit: \(f ? "Fahrenheit" : "Celsius")")
         }
+    }
+
+    /// Green / orange / red by CPU temperature (°C), matching the menu-bar item.
+    private func tempTint(_ c: Double) -> Color {
+        if c >= 85 { return .red }
+        if c >= 70 { return .orange }
+        return .green
     }
 
     @ViewBuilder private var displaySummary: some View {
@@ -303,6 +381,13 @@ private struct DashboardView: View {
             }
         }
     }
+
+    private static let time: DateFormatter = {
+        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none; return f
+    }()
+    private static let wday: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "EEE"; return f
+    }()
 }
 
 /// A single dashboard card: feature icon + title + chevron over a gist. Opens
