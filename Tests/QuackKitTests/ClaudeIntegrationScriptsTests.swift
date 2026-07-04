@@ -9,6 +9,7 @@ import Testing
         #expect(s.contains("session_id"))
         #expect(s.contains("exit 0"))          // fail-soft: never blocks Claude Code
         #expect(!s.contains("tac "))           // BSD userland: tail -r, not tac
+        #expect(s.contains("model_id"))        // desktop sessions: model comes from the transcript
     }
 
     @Test func wrapperTemplateHasPlaceholder() {

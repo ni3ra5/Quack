@@ -52,6 +52,10 @@ public enum ClaudeIntegrationScripts {
       if [ -f "$TRANSCRIPT" ]; then
         LAST=$(tail -300 "$TRANSCRIPT" 2>/dev/null | jq -rs '[.[] | select(.type=="assistant" and .isSidechain != true) | .message.content[]? | select(.type=="text") | .text] | last // empty' 2>/dev/null | head -1 | cut -c1-200)
         [ -n "$LAST" ] && EXTRA=$(jq -n --arg l "$LAST" '{last_assistant_line:$l}')
+        # Model id from the transcript: desktop-app sessions never invoke the
+        # statusLine command, so this is the only model source there.
+        MODEL_ID=$(tail -300 "$TRANSCRIPT" 2>/dev/null | jq -rs '[.[] | select(.type=="assistant" and .isSidechain != true) | .message.model // empty] | last // empty' 2>/dev/null | head -1 | cut -c1-64)
+        [ -n "$MODEL_ID" ] && EXTRA=$(printf '%s' "$EXTRA" | jq --arg m "$MODEL_ID" '. + {model_id:$m}')
       fi
     fi
 
