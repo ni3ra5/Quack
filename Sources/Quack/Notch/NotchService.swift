@@ -96,6 +96,22 @@ final class NotchService: NSObject, ManagedService {
             agentsRunning = s.notchAgentsEnabled
             agentsRunning ? agentsService.start() : agentsService.stop()
         }
+        refreshTokensToday()
+    }
+
+    /// Optional header-pill enrichment from the third-party usage.db
+    /// aggregator. Synchronous (single indexed SUM query) — acceptable on
+    /// main for v1, matching this service's other sync file reads. Hides
+    /// (nil) when the agents zone is off or the db is missing/unreadable.
+    private func refreshTokensToday() {
+        guard settings.settings.notchAgentsEnabled else {
+            model.tokensTodayText = nil
+            return
+        }
+        let dbPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/usage.db").path
+        model.tokensTodayText = TokensTodayReader.todayOutputTokens(dbPath: dbPath)
+            .map(TokenFormat.compact)
     }
 
     private func buildPanelIfNeeded() {
@@ -162,6 +178,7 @@ final class NotchService: NSObject, ManagedService {
 
     private func handleHover(_ hovering: Bool) {
         model.isOpen = hovering
+        if hovering { refreshTokensToday() }
         reposition()
     }
 }

@@ -67,6 +67,7 @@ let package = Package(
                 .linkedFramework("IOKit"),
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("CoreGraphics"),
+                .linkedLibrary("sqlite3"),
             ]
         ),
         .testTarget(
