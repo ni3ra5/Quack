@@ -66,4 +66,57 @@ import Foundation
         #expect(prev == nil)
         #expect(ClaudeSettingsEditor.integrationPresent(in: out))
     }
+
+    @Test func emptyDataStillTreatedAsEmptyObject() throws {
+        // Whitespace-only input is also a legitimate "missing file" case, not malformed.
+        let (out, prev) = try ClaudeSettingsEditor.addingIntegration(to: Data("   \n".utf8), hookCommand: hookCmd, statusLineCommand: wrapperCmd)
+        #expect(prev == nil)
+        #expect(ClaudeSettingsEditor.integrationPresent(in: out))
+    }
+
+    @Test func addThrowsOnNonObjectTopLevel() throws {
+        let input = Data("[1,2]".utf8)
+        #expect(throws: ClaudeSettingsEditorError.self) {
+            try ClaudeSettingsEditor.addingIntegration(to: input, hookCommand: hookCmd, statusLineCommand: wrapperCmd)
+        }
+    }
+
+    @Test func addThrowsOnGarbageBytes() throws {
+        let input = Data("not json".utf8)
+        #expect(throws: ClaudeSettingsEditorError.self) {
+            try ClaudeSettingsEditor.addingIntegration(to: input, hookCommand: hookCmd, statusLineCommand: wrapperCmd)
+        }
+    }
+
+    @Test func addThrowsOnStringHooks() throws {
+        let input = Data(#"{"hooks":"oops"}"#.utf8)
+        #expect(throws: ClaudeSettingsEditorError.self) {
+            try ClaudeSettingsEditor.addingIntegration(to: input, hookCommand: hookCmd, statusLineCommand: wrapperCmd)
+        }
+    }
+
+    @Test func addThrowsOnNonArrayEvent() throws {
+        let input = Data(#"{"hooks":{"Stop":{"a":1}}}"#.utf8)
+        #expect(throws: ClaudeSettingsEditorError.self) {
+            try ClaudeSettingsEditor.addingIntegration(to: input, hookCommand: hookCmd, statusLineCommand: wrapperCmd)
+        }
+    }
+
+    @Test func addPreservesGarbageAndForeignSiblings() throws {
+        let input = Data(#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/other/tool.sh"}]},"garbage"]}}"#.utf8)
+        let (added, _) = try ClaudeSettingsEditor.addingIntegration(to: input, hookCommand: hookCmd, statusLineCommand: wrapperCmd)
+        let stopAfterAdd = (try obj(added)["hooks"] as! [String: Any])["Stop"] as! [Any]
+        #expect(stopAfterAdd.count == 3)
+        #expect(stopAfterAdd.contains { ($0 as? String) == "garbage" })
+        #expect(stopAfterAdd.contains { entry in
+            guard let dict = entry as? [String: Any] else { return false }
+            let cmds = (dict["hooks"] as? [[String: Any]])?.compactMap { $0["command"] as? String } ?? []
+            return cmds.contains("/other/tool.sh")
+        })
+
+        let removed = try ClaudeSettingsEditor.removingIntegration(from: added, restoringStatusLineCommand: nil)
+        let stopAfterRemove = (try obj(removed)["hooks"] as! [String: Any])["Stop"] as! [Any]
+        #expect(stopAfterRemove.count == 2)
+        #expect(stopAfterRemove.contains { ($0 as? String) == "garbage" })
+    }
 }
