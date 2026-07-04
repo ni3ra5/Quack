@@ -28,6 +28,8 @@ struct NotchContentView: View {
         VStack(spacing: 0) {
             if model.agentsEnabled {
                 VStack(alignment: .leading, spacing: 10) {
+                    NotchHeaderView(model: model)
+                    if let usage = model.usage { UsageLimitsView(usage: usage) }
                     agentsZone
                 }
                 .padding(.horizontal, 14)
@@ -47,20 +49,30 @@ struct NotchContentView: View {
         .foregroundStyle(.white)
     }
 
-    // Task 9 replaces this placeholder with header + usage + cards.
     @ViewBuilder
     private var agentsZone: some View {
         if !model.integrationInstalled {
-            Text("Enable Claude integration in Quack Settings")
-                .font(.system(size: 11)).foregroundStyle(NotchTheme.textMuted)
+            HStack(spacing: 6) {
+                Image(systemName: "asterisk").font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(NotchTheme.orange)
+                Text("Enable Claude integration in Quack Settings")
+                    .font(.system(size: 11)).foregroundStyle(NotchTheme.textMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         } else if model.agents.isEmpty {
             Text("No active agents")
                 .font(.system(size: 11)).foregroundStyle(NotchTheme.textMuted)
+        } else if model.agents.count > 3 {
+            ScrollView(showsIndicators: false) { cards }
+                .frame(maxHeight: 3 * 92 + 2 * 8)
         } else {
-            ForEach(model.agents) { agent in
-                Text("\(agent.project) — \(agent.status.rawValue)")
-                    .font(.system(size: 11)).foregroundStyle(NotchTheme.textSecondary)
-            }
+            cards
+        }
+    }
+
+    private var cards: some View {
+        VStack(spacing: 8) {
+            ForEach(model.agents) { AgentCardView(agent: $0) }
         }
     }
 
