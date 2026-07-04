@@ -39,6 +39,7 @@ final class AppEnvironment: ObservableObject {
     private let dockPinchService: DockPinchMonitor
     private let temperatureService: TemperatureStatusItem
     private let notchMediaService: NotchMediaService
+    private let notchRevealService: NotchIconRevealService
 
     private let coordinator: AppCoordinator
     private var cancellables: Set<AnyCancellable> = []
@@ -72,6 +73,7 @@ final class AppEnvironment: ObservableObject {
         self.dockPinchService = DockPinchMonitor(settings: settings, permissions: permissions, diagnostics: diagnostics)
         self.temperatureService = TemperatureStatusItem(settings: settings)
         self.notchRevealService = NotchIconRevealService(settings: settings, permissions: permissions)
+        self.notchMediaService = NotchMediaService()
 
         let services: [Feature: ManagedService] = [
             .calendar: calendarService,

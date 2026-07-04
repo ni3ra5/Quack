@@ -143,28 +143,38 @@ struct SettingsPane: View {
     @EnvironmentObject var env: AppEnvironment
 
     var body: some View {
-        Form {
+        Group {
             switch tab {
-            case .general: GeneralSection()
-            case .calendar:
-                CalendarSection()
-                RemindersSection()
-            case .display:
-                BrightnessSection()
-            case .temperature:
-                TemperatureSection()
-            case .windows:
-                WindowSwipeSection()
-                DockGesturesSection()
-                KeyboardShortcutsSection()
-                NotchRevealSection()
-            case .permissions:
-                PermissionsSection()
-                StatusSection()
+            case .general:
+                DashboardView()
+            default:
+                Form {
+                    switch tab {
+                    case .calendar:
+                        CalendarSection()
+                        RemindersSection()
+                    case .display:
+                        BrightnessSection()
+                    case .temperature:
+                        TemperatureSection()
+                    case .windows:
+                        WindowSwipeSection()
+                        DockGesturesSection()
+                        KeyboardShortcutsSection()
+                        NotchRevealSection()
+                    case .permissions:
+                        PermissionsSection()
+                        StatusSection()
+                    case .settings:
+                        SettingsSection()
+                    case .general:
+                        EmptyView()  // shouldn't reach here
+                    }
+                }
+                .formStyle(.grouped)
+                .scrollContentBackground(.hidden)   // let the darker window bg show through
             }
         }
-        .formStyle(.grouped)
-        .scrollContentBackground(.hidden)   // let the darker window bg show through
     }
 }
 
