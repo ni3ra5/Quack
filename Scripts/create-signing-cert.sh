@@ -39,8 +39,20 @@ EOF
 
 openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
     -keyout "$TMP/key.pem" -out "$TMP/cert.pem" -config "$TMP/cert.cnf" 2>/dev/null
-openssl pkcs12 -export -inkey "$TMP/key.pem" -in "$TMP/cert.pem" \
-    -out "$TMP/identity.p12" -passout pass:"$KC_PASS" 2>/dev/null
+
+# OpenSSL 3 defaults to AES/PBKDF2/SHA-256 PKCS12 encoding, which macOS
+# `security import` rejects with "MAC verification failed during PKCS12 import
+# (wrong password?)". -legacy restores the 3DES/SHA1 encoding it accepts.
+# LibreSSL (/usr/bin/openssl) and OpenSSL 1.x don't know -legacy, but accept
+# the same encoding spelled out explicitly — so fall back to that, and only
+# then to a plain export (shown without 2>/dev/null so a real failure is loud).
+pkcs12_export() {
+    openssl pkcs12 -export -inkey "$TMP/key.pem" -in "$TMP/cert.pem" \
+        -out "$TMP/identity.p12" -passout pass:"$KC_PASS" "$@"
+}
+pkcs12_export -legacy 2>/dev/null \
+    || pkcs12_export -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1 2>/dev/null \
+    || pkcs12_export
 
 # Dedicated keychain with a known password.
 security create-keychain -p "$KC_PASS" "$KEYCHAIN" 2>/dev/null || true

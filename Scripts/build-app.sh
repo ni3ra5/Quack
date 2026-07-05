@@ -32,7 +32,24 @@ if [ -z "${SIGN_ID:-}" ]; then
 fi
 
 echo "▸ Building Quack (${CONFIG})…"
-swift build -c "${CONFIG}" --product "${APP_NAME}"
+# SwiftPM sometimes exits non-zero with a benign "<...>/.build/build.db:
+# disk I/O error" even though the build itself succeeded. Don't trust the exit
+# code for that one error: accept it only when the product binary exists and
+# is not older than any Swift source. Anything else still fails loudly.
+BUILD_LOG="$(mktemp)"
+trap 'rm -f "${BUILD_LOG}"' EXIT
+if ! swift build -c "${CONFIG}" --product "${APP_NAME}" 2>&1 | tee "${BUILD_LOG}"; then
+    PRODUCT_BIN="${BUILD_DIR}/${APP_NAME}"
+    if grep -q 'build\.db' "${BUILD_LOG}" && grep -q 'disk I/O error' "${BUILD_LOG}" \
+        && [ -x "${PRODUCT_BIN}" ] \
+        && [ -z "$(find Sources Package.swift -name '*.swift' -newer "${PRODUCT_BIN}" -print -quit)" ]; then
+        echo "⚠︎ swift build reported the known-benign build.db disk I/O error;"
+        echo "  ${PRODUCT_BIN} exists and is newer than all sources — continuing."
+    else
+        echo "✗ swift build failed — see output above." >&2
+        exit 1
+    fi
+fi
 
 echo "▸ Assembling ${APP_DIR}…"
 rm -rf "${APP_DIR}"
