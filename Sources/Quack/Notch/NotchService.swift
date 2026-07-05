@@ -23,7 +23,7 @@ final class NotchService: NSObject, ManagedService {
     private var agentsRunning = false
 
     private let hoverMargin: CGFloat = 24
-    private let expandedWidth: CGFloat = 360
+    private let expandedWidth: CGFloat = 420
     private let mediaOnlyContentHeight: CGFloat = 58
 
     init(settings: SettingsStore, installer: ClaudeConfigInstaller) {
@@ -138,17 +138,30 @@ final class NotchService: NSObject, ManagedService {
         reposition()
     }
 
-    /// Same anchor rule as the media-only panel: top edge at the BOTTOM of the
-    /// notch cutout (cocoaNotchRect.minY), hanging downward.
+    /// Collapsed/peek: a strip hanging below the notch cutout (menu bar stays
+    /// usable). Expanded: a curtain from the very top of the screen — the panel
+    /// covers the menu-bar band and the cutout, and `contentTopInset` pushes
+    /// the content below the physical camera housing so nothing renders
+    /// behind it (CLAUDE.md geometry rule).
     private func reposition() {
         guard let layout = reader.currentLayout(), let panel else { return }
         let notchBottom = layout.cocoaNotchRect.minY
+        let notchHeight = layout.cocoaNotchRect.height
+        let screenTop = layout.screen.frame.maxY
         let width = model.isOpen ? expandedWidth : max(layout.cocoaNotchRect.width, 120)
-        let height = model.isOpen ? expandedHeight() : hoverMargin
         let centerX = layout.cocoaNotchRect.midX
         let originX = centerX - width / 2
-        let originY = notchBottom - height
-        model.contentTopInset = 0
+        let height: CGFloat
+        let originY: CGFloat
+        if model.isOpen {
+            height = expandedHeight() + notchHeight   // content + the covered cutout band
+            originY = screenTop - height              // curtain: top edge at screen top
+            model.contentTopInset = notchHeight       // content starts below the cutout
+        } else {
+            height = hoverMargin
+            originY = notchBottom - height            // strip hangs below the notch
+            model.contentTopInset = 0
+        }
         panel.setFrame(NSRect(x: originX, y: originY, width: width, height: height), display: true)
         panel.orderFrontRegardless()
     }
