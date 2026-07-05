@@ -62,6 +62,7 @@ final class NotchService: NSObject, ManagedService {
         model.onToggle = { [weak self] in self?.nowPlaying.togglePlayPause() }
         model.onNext = { [weak self] in self?.nowPlaying.next() }
         model.onPrevious = { [weak self] in self?.nowPlaying.previous() }
+        model.onAgentTap = { [weak self] agent in self?.focusAgent(agent) }
 
         nowPlaying.$track
             .sink { [weak self] t in self?.model.track = t }
@@ -176,5 +177,21 @@ final class NotchService: NSObject, ManagedService {
         model.isOpen = hovering
         if hovering { refreshTokensToday() }
         reposition()
+    }
+
+    /// Click-to-focus: activate the app hosting the agent's session; fall back
+    /// to revealing the project folder when the host is gone/unknown.
+    private func focusAgent(_ agent: AgentSnapshot) {
+        if let pid = agent.hostPID,
+           let app = NSRunningApplication(processIdentifier: pid_t(pid)),
+           !app.isTerminated {
+            if #available(macOS 14.0, *) {
+                app.activate()
+            } else {
+                app.activate(options: [.activateIgnoringOtherApps])
+            }
+            return
+        }
+        Log.claude.info("focusAgent: no live host for session \(agent.sessionID, privacy: .public)")
     }
 }

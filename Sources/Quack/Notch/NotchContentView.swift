@@ -71,7 +71,11 @@ struct NotchContentView: View {
 
     private var cards: some View {
         VStack(spacing: 8) {
-            ForEach(model.agents) { AgentCardView(agent: $0) }
+            ForEach(model.agents) { agent in
+                AgentCardView(agent: agent)
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.onAgentTap?(agent) }
+            }
         }
     }
 

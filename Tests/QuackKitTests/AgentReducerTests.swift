@@ -157,4 +157,18 @@ import Foundation
         let snap = AgentReducer.snapshots(from: [f], now: now, staleAfter: 900)[0]
         #expect(AgentReducer.statLine(for: snap) == nil)
     }
+
+    // MARK: - Amendments: host pid (click-to-focus)
+
+    @Test func hostPIDPassesThroughWhenPresent() throws {
+        let f = files(try state(["host_pid": 4242, "host_app": "Terminal"]))
+        let snap = AgentReducer.snapshots(from: [f], now: now, staleAfter: 900)[0]
+        #expect(snap.hostPID == 4242)
+    }
+
+    @Test func hostPIDNilWhenAbsent() throws {
+        let f = files(try state([:]))
+        let snap = AgentReducer.snapshots(from: [f], now: now, staleAfter: 900)[0]
+        #expect(snap.hostPID == nil)
+    }
 }

@@ -47,10 +47,26 @@ public enum ClaudeIntegrationScripts {
       MSG=$(printf '%s' "$INPUT" | jq -r '.message // empty' 2>/dev/null | head -1 | cut -c1-200)
       [ -n "$MSG" ] && EXTRA=$(jq -n --arg m "$MSG" '{notification_message:$m}')
     fi
+    if [ "$EVENT" = "SessionStart" ]; then
+      PID=$$
+      HOST_PID=""; HOST_APP=""
+      for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+        PID=$(ps -o ppid= -p "$PID" 2>/dev/null | tr -d ' ')
+        [ -n "$PID" ] && [ "$PID" -gt 1 ] 2>/dev/null || break
+        CMD=$(ps -o comm= -p "$PID" 2>/dev/null)
+        case "$CMD" in
+          *.app/Contents/MacOS/*)
+            HOST_PID="$PID"
+            HOST_APP=$(printf '%s' "$CMD" | sed -E 's|.*/([^/]+)\.app/Contents/MacOS/.*|\1|')
+            break ;;
+        esac
+      done
+      [ -n "$HOST_PID" ] && EXTRA=$(jq -n --arg p "$HOST_PID" --arg a "$HOST_APP" '{host_pid:($p|tonumber), host_app:$a}')
+    fi
     if [ "$EVENT" = "Stop" ]; then
       TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null)
       if [ -f "$TRANSCRIPT" ]; then
-        LAST=$(tail -300 "$TRANSCRIPT" 2>/dev/null | jq -rs '[.[] | select(.type=="assistant" and .isSidechain != true) | .message.content[]? | select(.type=="text") | .text] | last // empty' 2>/dev/null | head -1 | cut -c1-200)
+        LAST=$(tail -300 "$TRANSCRIPT" 2>/dev/null | jq -rs '[.[] | select(.type=="assistant" and .isSidechain != true) | .message.content[]? | select(.type=="text") | .text] | last // empty' 2>/dev/null | awk 'NF && $0 !~ /^```/ {print; exit}' | cut -c1-200)
         [ -n "$LAST" ] && EXTRA=$(jq -n --arg l "$LAST" '{last_assistant_line:$l}')
         # Model id from the transcript: desktop-app sessions never invoke the
         # statusLine command, so this is the only model source there.

@@ -108,7 +108,8 @@ public enum AgentReducer {
             costUSD: f.status?.cost?.total_cost_usd,
             fiveHourUsedPercent: f.status?.rate_limits?.five_hour?.used_percentage,
             sevenDayUsedPercent: f.status?.rate_limits?.seven_day?.used_percentage,
-            lastUpdate: last
+            lastUpdate: last,
+            hostPID: state.host_pid
         )
     }
 

@@ -21,6 +21,7 @@ final class NotchContentViewModel: ObservableObject {
     var onToggle: (() -> Void)?
     var onNext: (() -> Void)?
     var onPrevious: (() -> Void)?
+    var onAgentTap: ((AgentSnapshot) -> Void)?
 
     var needsYouCount: Int { agents.filter { $0.status == .needsYou }.count }
     var activeCount: Int { agents.filter { $0.status != .idle }.count }

@@ -27,11 +27,15 @@ public struct AgentSnapshot: Equatable, Sendable, Identifiable {
     /// This session's own 7d rate-limit window usage, 0...100.
     public let sevenDayUsedPercent: Double?
     public let lastUpdate: Date
+    /// pid of the GUI app hosting this session (Terminal, iTerm2, VS Code,
+    /// Claude desktop, ...), captured by the SessionStart hook's parent-chain
+    /// walk. nil when unknown or the hook predates this field.
+    public let hostPID: Int?
 
     public init(sessionID: String, project: String, branch: String?, model: String?,
                 status: AgentStatus, statusMessage: String?, progress: Double?,
                 contextUsedPercent: Double?, costUSD: Double?, fiveHourUsedPercent: Double?,
-                sevenDayUsedPercent: Double?, lastUpdate: Date) {
+                sevenDayUsedPercent: Double?, lastUpdate: Date, hostPID: Int?) {
         self.sessionID = sessionID
         self.project = project
         self.branch = branch
@@ -44,6 +48,7 @@ public struct AgentSnapshot: Equatable, Sendable, Identifiable {
         self.fiveHourUsedPercent = fiveHourUsedPercent
         self.sevenDayUsedPercent = sevenDayUsedPercent
         self.lastUpdate = lastUpdate
+        self.hostPID = hostPID
     }
 }
 
@@ -65,6 +70,10 @@ public struct StateFileRaw: Decodable, Equatable, Sendable {
     public let todos_total: Int?
     /// Model id captured from the transcript by the Stop hook (e.g. "claude-fable-5").
     public let model_id: String?
+    /// pid of the GUI app hosting this session, captured at SessionStart.
+    public let host_pid: Int?
+    /// Name of the GUI app hosting this session (e.g. "Terminal"), captured at SessionStart.
+    public let host_app: String?
 }
 
 /// On-disk shape of <id>.status.json — the raw Claude Code statusLine JSON.
