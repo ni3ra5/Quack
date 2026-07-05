@@ -18,6 +18,7 @@ cd "$(dirname "$0")/.."
 
 BUNDLE_ID="com.quack.menubar"
 DEST="/Applications/Quack.app"
+FINGERPRINT_FILE="$HOME/Library/Keychains/.quack-signing-fingerprint"
 
 echo "▸ Quitting any running Quack…"
 osascript -e 'tell application "Quack" to quit' 2>/dev/null || true
@@ -36,16 +37,28 @@ echo "▸ Installing to ${DEST}…"
 rm -rf "${DEST}"
 cp -R "build/Quack.app" "${DEST}"
 
-# Only reset grants when signing ad-hoc: ad-hoc identity changes every build, so
-# old grants go stale. With the stable "Quack Local Signing" identity, grants
-# persist across reinstalls — so we must NOT reset them.
-if security find-certificate -c "Quack Local Signing" >/dev/null 2>&1; then
-    echo "▸ Stable signing identity present — keeping existing permission grants."
+# TCC grants are keyed to the exact certificate that signed the app, not just
+# "is there a stable cert". Ad-hoc signing changes identity every build, so
+# those grants always go stale. The "Quack Local Signing" cert is meant to keep
+# grants valid across rebuilds — but if that cert itself is ever regenerated
+# (fresh keychain, migrated machine, deleted and recreated by
+# create-signing-cert.sh), TCC's stored requirement no longer matches the new
+# cert and every check silently fails ("Failed to match existing code
+# requirement" in tccd's log) even though System Settings still shows the
+# toggle on. So compare the cert actually used against the one from last
+# install, instead of assuming "exists" means "unchanged".
+CURRENT_FINGERPRINT="$(security find-certificate -c "Quack Local Signing" -Z 2>/dev/null | awk '/SHA-256 hash/{print $NF}')"
+LAST_FINGERPRINT="$(cat "${FINGERPRINT_FILE}" 2>/dev/null || true)"
+
+if [ -n "${CURRENT_FINGERPRINT}" ] && [ "${CURRENT_FINGERPRINT}" = "${LAST_FINGERPRINT}" ]; then
+    echo "▸ Signing identity unchanged since last install — keeping existing permission grants."
 else
-    echo "▸ Ad-hoc build — clearing stale grants (you'll re-grant). Run Scripts/create-signing-cert.sh to stop this."
+    echo "▸ Signing identity changed (or first install) — clearing stale grants (you'll re-grant)."
     tccutil reset Accessibility "${BUNDLE_ID}" 2>/dev/null || true
     tccutil reset Calendar "${BUNDLE_ID}" 2>/dev/null || true
     tccutil reset ListenEvent "${BUNDLE_ID}" 2>/dev/null || true
+    tccutil reset ScreenCapture "${BUNDLE_ID}" 2>/dev/null || true
+    [ -n "${CURRENT_FINGERPRINT}" ] && echo "${CURRENT_FINGERPRINT}" > "${FINGERPRINT_FILE}"
 fi
 
 echo "▸ Launching…"
