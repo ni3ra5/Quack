@@ -66,14 +66,25 @@ final class ReminderScheduler: ManagedService {
     private func leadID(_ meeting: MeetingEvent, _ lead: Int) -> String { "\(meeting.id)-\(lead)" }
     private func startID(_ meeting: MeetingEvent) -> String { "\(meeting.id)-start" }
 
-    /// Marks reminders whose instant is already in the past as "fired" so we
-    /// don't replay them on launch.
+    /// Marks reminders whose instant is already *stale* (past its fire window)
+    /// as "fired" so a launch doesn't replay long-passed reminders. A reminder
+    /// still inside its actionable window is intentionally left unfired so it
+    /// fires right after launch — e.g. reopening the Mac just after a meeting
+    /// starts should still surface the "join now" toast. This mirrors the window
+    /// checks in `check()`, so priming and live firing agree.
     private func primeAlreadyPassed(now: Date) {
         for meeting in store.upcoming where !meeting.isAllDay {
             for lead in leads {
-                if meeting.start.addingTimeInterval(-Double(lead) * 60) <= now { fired.insert(leadID(meeting, lead)) }
+                let fire = meeting.start.addingTimeInterval(-Double(lead) * 60)
+                // A lead is unactionable once its window has elapsed or the
+                // meeting has already started.
+                if now >= fire.addingTimeInterval(fireWindow) || now >= meeting.start {
+                    fired.insert(leadID(meeting, lead))
+                }
             }
-            if meeting.start <= now { fired.insert(startID(meeting)) }
+            if now >= meeting.start.addingTimeInterval(fireWindow) {
+                fired.insert(startID(meeting))
+            }
         }
     }
 
