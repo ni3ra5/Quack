@@ -95,6 +95,11 @@ final class EventKitProvider: CalendarProvider, @unchecked Sendable {
 
     private static func map(_ event: EKEvent) -> MeetingEvent? {
         guard let start = event.startDate, let end = event.endDate else { return nil }
+        // Drop meetings the user has declined (and canceled events) so they never
+        // reach the menu bar, the dropdown, or the reminder toasts.
+        if event.status == .canceled { return nil }
+        if let me = event.attendees?.first(where: { $0.isCurrentUser }),
+           me.participantStatus == .declined { return nil }
         // EKEvent.eventIdentifier can be nil for some detached occurrences; fall
         // back to a composite key so reminders stay stable.
         let id = event.eventIdentifier ?? "\(event.calendarItemIdentifier)-\(start.timeIntervalSince1970)"
