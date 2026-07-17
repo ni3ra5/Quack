@@ -66,21 +66,16 @@ final class ReminderScheduler: ManagedService {
     private func leadID(_ meeting: MeetingEvent, _ lead: Int) -> String { "\(meeting.id)-\(lead)" }
     private func startID(_ meeting: MeetingEvent) -> String { "\(meeting.id)-start" }
 
-    /// Marks reminders whose instant is already *stale* (past its fire window)
-    /// as "fired" so a launch doesn't replay long-passed reminders. A reminder
-    /// still inside its actionable window is intentionally left unfired so it
-    /// fires right after launch — e.g. reopening the Mac just after a meeting
-    /// starts should still surface the "join now" toast. This mirrors the window
-    /// checks in `check()`, so priming and live firing agree.
+    /// Marks reminders that are no longer worth showing as "fired" so a launch
+    /// doesn't replay them. An advance reminder is only suppressed once its
+    /// meeting has already started (a meeting still in the future is always worth
+    /// a heads-up on launch — see the catch-up in `check()`). The "join now"
+    /// start reminder is suppressed once its meeting started more than a fire
+    /// window ago, so a fresh launch still surfaces a just-started meeting.
     private func primeAlreadyPassed(now: Date) {
         for meeting in store.upcoming where !meeting.isAllDay {
-            for lead in leads {
-                let fire = meeting.start.addingTimeInterval(-Double(lead) * 60)
-                // A lead is unactionable once its window has elapsed or the
-                // meeting has already started.
-                if now >= fire.addingTimeInterval(fireWindow) || now >= meeting.start {
-                    fired.insert(leadID(meeting, lead))
-                }
+            if now >= meeting.start {
+                for lead in leads { fired.insert(leadID(meeting, lead)) }
             }
             if now >= meeting.start.addingTimeInterval(fireWindow) {
                 fired.insert(startID(meeting))
@@ -94,13 +89,19 @@ final class ReminderScheduler: ManagedService {
         guard active else { return }
         let now = Date()
         for meeting in store.upcoming where !meeting.isAllDay {
-            for lead in leads {
+            // Fire an advance reminder whenever its instant has passed and the
+            // meeting hasn't started — NOT only inside a tight window. This makes
+            // reminders survive throttled/coalesced timers (App Nap on this
+            // background agent) and launches: a late check still delivers. If
+            // several leads elapsed together (e.g. after a nap), collapse them
+            // into one toast and label it with the ACTUAL time remaining.
+            let passed = leads.filter { lead in
                 let fire = meeting.start.addingTimeInterval(-Double(lead) * 60)
-                let id = leadID(meeting, lead)
-                if !fired.contains(id), now >= fire, now < fire.addingTimeInterval(fireWindow), now < meeting.start {
-                    fired.insert(id)
-                    showReminder(meeting, leadMinutes: lead)
-                }
+                return now >= fire && now < meeting.start && !fired.contains(leadID(meeting, lead))
+            }
+            if !passed.isEmpty {
+                for lead in passed { fired.insert(leadID(meeting, lead)) }
+                showReminder(meeting, now: now)
             }
             let sid = startID(meeting)
             if settings.settings.remindAtStart,
@@ -142,15 +143,19 @@ final class ReminderScheduler: ManagedService {
         nextTimer = timer
     }
 
-    private func showReminder(_ meeting: MeetingEvent, leadMinutes: Int) {
-        Log.reminders.log("advance reminder: \(meeting.title, privacy: .public) in \(leadMinutes)m")
+    private func showReminder(_ meeting: MeetingEvent, now: Date) {
+        // Label with the real minutes remaining, rounded up, so a catch-up toast
+        // fired late (after a nap) reads correctly rather than showing the
+        // configured lead. Never below 1.
+        let minutes = max(1, Int((meeting.start.timeIntervalSince(now) / 60).rounded(.up)))
+        Log.reminders.log("advance reminder: \(meeting.title, privacy: .public) in \(minutes)m")
         let url = MeetingURLParser.joinURL(for: meeting)
-        // Only the final 1-minute heads-up offers Join — earlier ones (20/10/5)
-        // are plain notifications that auto-dismiss.
-        let joinable = leadMinutes <= 1
+        // Only the final 1-minute heads-up offers Join — earlier ones are plain
+        // notifications that auto-dismiss.
+        let joinable = minutes <= 1
         toasts.show(ToastItem(
             title: meeting.title,
-            relativeText: joinable ? "in 1 min · join now" : "in \(leadMinutes) min",
+            relativeText: joinable ? "in 1 min · join now" : "in \(minutes) min",
             timeRange: Self.timeRange(meeting.start, meeting.end),
             colorHex: meeting.calendarColorHex,
             joinURL: url,
