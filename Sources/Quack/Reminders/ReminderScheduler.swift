@@ -28,11 +28,6 @@ final class ReminderScheduler: ManagedService {
     // keeps the timers punctual but still lets the Mac sleep when idle.
     private var activityToken: NSObjectProtocol?
 
-    // A reminder fires if "now" is within this window past its scheduled instant
-    // — so a just-launched app doesn't replay long-past reminders, and a brief
-    // sleep doesn't lose one.
-    private let fireWindow: TimeInterval = 150
-
     init(store: MeetingStore, settings: SettingsStore, toasts: ToastPresenter, sound: QuackSound) {
         self.store = store
         self.settings = settings
@@ -46,8 +41,6 @@ final class ReminderScheduler: ManagedService {
             options: .userInitiatedAllowingIdleSystemSleep,
             reason: "Deliver meeting reminders on time"
         )
-        // Don't replay reminders whose moment already passed before we started.
-        primeAlreadyPassed(now: Date())
 
         let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.check() }
@@ -74,56 +67,23 @@ final class ReminderScheduler: ManagedService {
         fired.removeAll()
     }
 
-    // Reminder identifiers include the meeting's start time, so rescheduling a
-    // meeting (same event id, new time) re-arms its reminders instead of staying
-    // suppressed by the flags fired for the old time.
-    private func slot(_ meeting: MeetingEvent) -> Int { Int(meeting.start.timeIntervalSince1970) }
-    private func leadID(_ meeting: MeetingEvent, _ lead: Int) -> String { "\(meeting.id)-\(slot(meeting))-\(lead)" }
-    private func startID(_ meeting: MeetingEvent) -> String { "\(meeting.id)-\(slot(meeting))-start" }
+    private var leads: [Int] { settings.settings.reminderLeadMinutes }
 
-    /// Marks reminders that are no longer worth showing as "fired" so a launch
-    /// doesn't replay them. An advance reminder is only suppressed once its
-    /// meeting has already started (a meeting still in the future is always worth
-    /// a heads-up on launch — see the catch-up in `check()`). The "join now"
-    /// start reminder is suppressed once its meeting started more than a fire
-    /// window ago, so a fresh launch still surfaces a just-started meeting.
-    private func primeAlreadyPassed(now: Date) {
-        for meeting in store.upcoming where !meeting.isAllDay {
-            if now >= meeting.start {
-                for lead in leads { fired.insert(leadID(meeting, lead)) }
-            }
-            if now >= meeting.start.addingTimeInterval(fireWindow) {
-                fired.insert(startID(meeting))
-            }
-        }
-    }
-
-    private var leads: [Int] { settings.settings.reminderLeadMinutes.filter { $0 > 0 } }
-
+    /// Delivers whatever `ReminderEngine` says is due now, records it as fired,
+    /// then arms a one-shot timer for the next instant. All firing rules live in
+    /// the (unit-tested) engine; this method only presents the results.
     private func check() {
         guard active else { return }
         let now = Date()
-        for meeting in store.upcoming where !meeting.isAllDay {
-            // Fire an advance reminder whenever its instant has passed and the
-            // meeting hasn't started — NOT only inside a tight window. This makes
-            // reminders survive throttled/coalesced timers (App Nap on this
-            // background agent) and launches: a late check still delivers. If
-            // several leads elapsed together (e.g. after a nap), collapse them
-            // into one toast and label it with the ACTUAL time remaining.
-            let passed = leads.filter { lead in
-                let fire = meeting.start.addingTimeInterval(-Double(lead) * 60)
-                return now >= fire && now < meeting.start && !fired.contains(leadID(meeting, lead))
-            }
-            if !passed.isEmpty {
-                for lead in passed { fired.insert(leadID(meeting, lead)) }
-                showReminder(meeting, now: now)
-            }
-            let sid = startID(meeting)
-            if settings.settings.remindAtStart,
-               !fired.contains(sid), now >= meeting.start, now < meeting.start.addingTimeInterval(fireWindow) {
-                fired.insert(sid)
-                showStart(meeting)
-                sound.play(NotificationSound.from(settings.settings.joinAlertSound))
+        let due = ReminderEngine.due(
+            meetings: store.upcoming, leads: leads,
+            remindAtStart: settings.settings.remindAtStart, now: now, fired: fired
+        )
+        for item in due {
+            item.keys.forEach { fired.insert($0) }
+            switch item.kind {
+            case .advance(let minutes): showReminder(item.meeting, minutesRemaining: minutes)
+            case .start: showStart(item.meeting)
             }
         }
         scheduleNext(now: now)
@@ -135,19 +95,10 @@ final class ReminderScheduler: ManagedService {
     private func scheduleNext(now: Date) {
         nextTimer?.invalidate()
         nextTimer = nil
-
-        var soonest: Date?
-        func consider(_ date: Date) {
-            guard date > now else { return }
-            soonest = min(soonest ?? date, date)
-        }
-        for meeting in store.upcoming where !meeting.isAllDay {
-            for lead in leads where !fired.contains(leadID(meeting, lead)) {
-                consider(meeting.start.addingTimeInterval(-Double(lead) * 60))
-            }
-            if !fired.contains(startID(meeting)) { consider(meeting.start) }
-        }
-        guard let target = soonest else { return }
+        guard let target = ReminderEngine.nextInstant(
+            meetings: store.upcoming, leads: leads,
+            remindAtStart: settings.settings.remindAtStart, now: now, fired: fired
+        ) else { return }
 
         // +0.2s so the timer fires just past the instant (now >= start holds).
         let interval = max(0.2, target.timeIntervalSince(now) + 0.2)
@@ -158,11 +109,7 @@ final class ReminderScheduler: ManagedService {
         nextTimer = timer
     }
 
-    private func showReminder(_ meeting: MeetingEvent, now: Date) {
-        // Label with the real minutes remaining, rounded up, so a catch-up toast
-        // fired late (after a nap) reads correctly rather than showing the
-        // configured lead. Never below 1.
-        let minutes = max(1, Int((meeting.start.timeIntervalSince(now) / 60).rounded(.up)))
+    private func showReminder(_ meeting: MeetingEvent, minutesRemaining minutes: Int) {
         Log.reminders.log("advance reminder: \(meeting.title, privacy: .public) in \(minutes)m")
         let url = MeetingURLParser.joinURL(for: meeting)
         // Only the final 1-minute heads-up offers Join — earlier ones are plain
@@ -196,6 +143,7 @@ final class ReminderScheduler: ManagedService {
             joinable: true,
             isStart: true
         ), dismissAfter: nil)   // stays until the user joins or dismisses
+        sound.play(NotificationSound.from(settings.settings.joinAlertSound))
     }
 
     /// "4:22 – 5:07 PM" — the AM/PM marker is dropped from the start time when
