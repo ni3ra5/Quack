@@ -12,10 +12,10 @@ public enum ReminderEngine {
     /// A reminder that should be shown at the queried instant.
     public struct Due: Equatable, Sendable {
         public enum Kind: Equatable, Sendable {
-            /// Advance heads-up, labelled with the REAL minutes remaining
-            /// (rounded up, never below 1) — not the configured lead, so a
-            /// catch-up fired late reads correctly.
-            case advance(minutesRemaining: Int)
+            /// Advance heads-up for a specific configured lead. Labelled by the
+            /// lead (e.g. "in 10 min"), so a toast only ever shows a lead time
+            /// the user actually enabled.
+            case advance(lead: Int)
             /// "Join now" — the meeting is in progress.
             case start
         }
@@ -30,6 +30,13 @@ public enum ReminderEngine {
             self.keys = keys
         }
     }
+
+    /// How long after a lead's instant a (possibly slightly delayed) reminder
+    /// may still fire before it's considered stale. Bounds catch-up so a higher
+    /// lead can't drift down into a lower — possibly disabled — lead's time. The
+    /// App Nap opt-out keeps timers punctual, so this only needs to absorb brief
+    /// coalescing / sleeps, not minutes of drift.
+    public static let catchUpGrace: TimeInterval = 150
 
     /// Stable identifiers include the meeting's start time so a rescheduled
     /// meeting is treated as a fresh reminder rather than reusing stale fired
@@ -52,11 +59,10 @@ public enum ReminderEngine {
 
     /// Reminders to show at `now`. All-day meetings are ignored (no countdown).
     ///
-    /// - An advance reminder fires once its lead instant has passed while the
-    ///   meeting is still upcoming — with NO upper bound, so it survives
-    ///   throttled timers (App Nap), sleeps, and launches. Several leads that
-    ///   elapsed together collapse into one toast labelled with the real
-    ///   minutes remaining.
+    /// - An advance reminder fires for a configured lead once its instant has
+    ///   passed, within `catchUpGrace` (so a brief delay still delivers, but a
+    ///   higher lead never drifts into a lower lead's time). Only the largest
+    ///   in-window lead fires per check, labelled by that lead.
     /// - The "join now" reminder fires while the meeting is in progress
     ///   (`start <= now < end`), so waking or relaunching mid-meeting still
     ///   surfaces it — not only within a narrow window around the start.
@@ -69,17 +75,18 @@ public enum ReminderEngine {
         now: Date,
         fired: Set<String>
     ) -> [Due] {
-        let leads = normalizedLeads(leads)
+        let leads = normalizedLeads(leads)   // largest first
         var result: [Due] = []
         for m in meetings where !m.isAllDay {
-            let passed = leads.filter { lead in
+            // The largest lead currently inside its (bounded) fire window.
+            if let lead = leads.first(where: { lead in
                 let fire = m.start.addingTimeInterval(-Double(lead) * 60)
-                return now >= fire && now < m.start && !fired.contains(leadKey(m, lead))
-            }
-            if !passed.isEmpty {
-                let minutes = max(1, Int((m.start.timeIntervalSince(now) / 60).rounded(.up)))
-                result.append(Due(meeting: m, kind: .advance(minutesRemaining: minutes),
-                                  keys: passed.map { leadKey(m, $0) }))
+                return now >= fire
+                    && now < fire.addingTimeInterval(catchUpGrace)
+                    && now < m.start
+                    && !fired.contains(leadKey(m, lead))
+            }) {
+                result.append(Due(meeting: m, kind: .advance(lead: lead), keys: [leadKey(m, lead)]))
             }
             if remindAtStart, now >= m.start, now < m.end, !fired.contains(startKey(m)) {
                 result.append(Due(meeting: m, kind: .start, keys: [startKey(m)]))

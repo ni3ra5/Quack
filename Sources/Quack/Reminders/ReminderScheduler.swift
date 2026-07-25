@@ -20,7 +20,12 @@ final class ReminderScheduler: ManagedService {
     private var cancellables: Set<AnyCancellable> = []
     private var pollTimer: Timer?
     private var nextTimer: Timer?   // one-shot, fires exactly at the next reminder instant
-    private var fired: Set<String> = []   // reminder identifiers already shown
+    // Reminders already shown, mapped to their meeting's end date. Persisted (see
+    // `firedDefaultsKey`) so relaunching mid-meeting doesn't re-show a reminder,
+    // and self-pruning: an entry is dropped once its meeting is over.
+    private var firedExpiry: [String: Date] = [:]
+    private var fired: Set<String> { Set(firedExpiry.keys) }
+    private let firedDefaultsKey = "com.quack.menubar.firedReminders"
     private var active = false
     // Holds an App Nap opt-out while reminders are on. Without it, macOS throttles
     // this background agent's timers when idle, so the 15s poll / one-shot could
@@ -41,6 +46,7 @@ final class ReminderScheduler: ManagedService {
             options: .userInitiatedAllowingIdleSystemSleep,
             reason: "Deliver meeting reminders on time"
         )
+        loadFired()   // restore already-shown reminders so a relaunch doesn't replay them
 
         let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.check() }
@@ -64,10 +70,34 @@ final class ReminderScheduler: ManagedService {
         pollTimer = nil
         nextTimer?.invalidate()
         nextTimer = nil
-        fired.removeAll()
+        // Keep `firedExpiry` (in memory + on disk) so toggling reminders off/on,
+        // or relaunching, doesn't replay a reminder already shown.
     }
 
     private var leads: [Int] { settings.settings.reminderLeadMinutes }
+
+    /// Loads persisted fired reminders, dropping any whose meeting has ended.
+    private func loadFired() {
+        let now = Date()
+        var restored: [String: Date] = [:]
+        for (key, seconds) in (UserDefaults.standard.dictionary(forKey: firedDefaultsKey) ?? [:]) {
+            guard let s = seconds as? Double else { continue }
+            let end = Date(timeIntervalSince1970: s)
+            if end > now { restored[key] = end }   // still-relevant; a past meeting can't re-fire anyway
+        }
+        firedExpiry = restored
+        saveFired()   // write back the pruned set
+    }
+
+    private func saveFired() {
+        UserDefaults.standard.set(firedExpiry.mapValues { $0.timeIntervalSince1970 }, forKey: firedDefaultsKey)
+    }
+
+    /// Records `keys` as fired until `expiry` (the meeting's end) and persists.
+    private func recordFired(_ keys: [String], until expiry: Date) {
+        for key in keys { firedExpiry[key] = expiry }
+        saveFired()
+    }
 
     /// Delivers whatever `ReminderEngine` says is due now, records it as fired,
     /// then arms a one-shot timer for the next instant. All firing rules live in
@@ -80,9 +110,9 @@ final class ReminderScheduler: ManagedService {
             remindAtStart: settings.settings.remindAtStart, now: now, fired: fired
         )
         for item in due {
-            item.keys.forEach { fired.insert($0) }
+            recordFired(item.keys, until: item.meeting.end)
             switch item.kind {
-            case .advance(let minutes): showReminder(item.meeting, minutesRemaining: minutes)
+            case .advance(let lead): showReminder(item.meeting, lead: lead)
             case .start: showStart(item.meeting)
             }
         }
@@ -109,15 +139,16 @@ final class ReminderScheduler: ManagedService {
         nextTimer = timer
     }
 
-    private func showReminder(_ meeting: MeetingEvent, minutesRemaining minutes: Int) {
-        Log.reminders.log("advance reminder: \(meeting.title, privacy: .public) in \(minutes)m")
+    private func showReminder(_ meeting: MeetingEvent, lead: Int) {
+        Log.reminders.log("advance reminder: \(meeting.title, privacy: .public) in \(lead)m")
         let url = MeetingURLParser.joinURL(for: meeting)
         // Only the final 1-minute heads-up offers Join — earlier ones are plain
-        // notifications that auto-dismiss.
-        let joinable = minutes <= 1
+        // notifications that auto-dismiss. Label by the configured lead so a
+        // toast only ever shows a lead time the user enabled.
+        let joinable = lead <= 1
         toasts.show(ToastItem(
             title: meeting.title,
-            relativeText: joinable ? "in 1 min · join now" : "in \(minutes) min",
+            relativeText: joinable ? "in 1 min · join now" : "in \(lead) min",
             timeRange: Self.timeRange(meeting.start, meeting.end),
             colorHex: meeting.calendarColorHex,
             joinURL: url,
