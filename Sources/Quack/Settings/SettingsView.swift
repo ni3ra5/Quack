@@ -28,59 +28,113 @@ enum SettingsTab: String, CaseIterable {
     }
 }
 
-/// The whole settings window: an app header (icon, name, description,
-/// launch-at-login), a tab strip, and the selected pane.
+/// The whole settings window: a dark left sidebar (workspace header + nav) and
+/// a content pane with a large title header and the selected pane below.
 struct SettingsRootView: View {
     @EnvironmentObject var env: AppEnvironment
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            tabStrip
-            Divider()
-            SettingsPane(tab: env.settingsTab)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        HStack(spacing: 0) {
+            sidebar
+            content
         }
-        .frame(width: 540, height: 640)
-        .font(.system(size: 14))   // bump the base text a little across the window
-        .background(Color(white: 0.07))
+        .frame(width: 760, height: 620)
+        .background(Color(white: 0.045))   // dark base shows through the content panel's rounded corners
+        .font(.system(size: 14))
         .tint(.accentColor)
         .onAppear { env.permissions.refreshAll() }
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable().frame(width: 56, height: 56)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Quack").font(.title2).bold()
-                Text("All shortcuts in one app. Quack Quack!")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    // MARK: Sidebar
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Workspace header (icon + name), sitting below the traffic lights.
+            HStack(spacing: 10) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable().frame(width: 26, height: 26)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                Text("Quack").font(.system(size: 15, weight: .semibold))
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 8)
+            .padding(.horizontal, 16)
+            .padding(.top, 44)
+            .padding(.bottom, 18)
+
+            Text("SETTINGS")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 22).padding(.bottom, 8)
+
+            VStack(spacing: 4) {
+                ForEach(SettingsTab.allCases, id: \.self) { navRow($0) }
+            }
+            .padding(.horizontal, 10)
+
+            Spacer(minLength: 0)
+
+            Button { NSApp.terminate(nil) } label: {
+                HStack(spacing: 13) {
+                    Image(systemName: "power").font(.system(size: 15)).frame(width: 22)
+                    Text("Quit Quack")
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 14).padding(.vertical, 11)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 8).padding(.bottom, 12)
         }
-        .padding(.horizontal, 16).padding(.vertical, 14)
+        .frame(width: 216)
+        .frame(maxHeight: .infinity)
+        .background(Color(white: 0.045))
     }
 
-    private var tabStrip: some View {
-        HStack(spacing: 6) {
-            ForEach(SettingsTab.allCases, id: \.self) { item in
-                Button { env.settingsTab = item } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: item.icon).font(.system(size: 17))
-                        Text(item.title).font(.system(size: 12))
-                    }
-                    .frame(width: 78, height: 50)
-                    .foregroundStyle(env.settingsTab == item ? Color.accentColor : Color.primary)
-                    .background(env.settingsTab == item ? Color.accentColor.opacity(0.18) : .clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+    private func navRow(_ item: SettingsTab) -> some View {
+        let selected = env.settingsTab == item
+        return Button { env.settingsTab = item } label: {
+            HStack(spacing: 13) {
+                Image(systemName: item.icon).font(.system(size: 15)).frame(width: 22)
+                Text(item.title).font(.system(size: 14, weight: selected ? .semibold : .regular))
+                Spacer(minLength: 0)
             }
+            .foregroundStyle(selected ? Color.primary : Color.secondary)
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(selected ? Color.white.opacity(0.09) : .clear,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Content
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: env.settingsTab.icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 34, height: 34)
+                    .background(Color.white.opacity(0.06), in: Circle())
+                Text(env.settingsTab.title)
+                    .font(.system(size: 28, weight: .bold))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 32)   // aligns the title's center with the sidebar "Quack" header
+            .padding(.bottom, 14)
+
+            SettingsPane(tab: env.settingsTab)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(white: 0.10))
+        // A rounded card floating with an even 8pt margin on all sides; the dark
+        // base shows through around it.
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(8)
     }
 }
 
@@ -144,9 +198,6 @@ private struct GeneralSection: View {
             Toggle("Hide the duck icon from the menu bar", isOn: s.binding(\.hideDuckIcon))
             Text("The dropdown and settings are still reachable from the meeting countdown and temperature items.")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
-        }
-        Section {
-            Button("Quit Quack") { NSApp.terminate(nil) }
         }
       }
       .onAppear { launchAtLogin = LaunchAtLogin.isEnabled }

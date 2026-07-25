@@ -12,6 +12,7 @@ final class SettingsWindowController {
     func show(env: AppEnvironment) {
         self.env = env
         if window == nil { buildWindow(env: env) }
+        window?.center()   // open centered every time (size is fixed below)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
         window?.orderFrontRegardless()
@@ -20,12 +21,18 @@ final class SettingsWindowController {
     private func buildWindow(env: AppEnvironment) {
         let hosting = NSHostingController(rootView: SettingsRootView().environmentObject(env))
         let window = NSWindow(contentViewController: hosting)
-        window.styleMask = [.titled, .closable, .miniaturizable]
+        // Full-size content view so the dark sidebar runs up behind the traffic
+        // lights, matching the two-pane layout.
+        window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
         window.title = "Quack Settings"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
-        window.center()
+        // Force the dark look regardless of the system theme.
+        window.appearance = NSAppearance(named: .darkAqua)
+        // Fix the size up front so `center()` positions it correctly (otherwise
+        // it centers a pre-layout window and lands off-centre).
+        window.setContentSize(NSSize(width: 760, height: 620))
         self.window = window
     }
 }
