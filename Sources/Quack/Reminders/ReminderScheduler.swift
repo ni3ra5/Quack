@@ -22,6 +22,11 @@ final class ReminderScheduler: ManagedService {
     private var nextTimer: Timer?   // one-shot, fires exactly at the next reminder instant
     private var fired: Set<String> = []   // reminder identifiers already shown
     private var active = false
+    // Holds an App Nap opt-out while reminders are on. Without it, macOS throttles
+    // this background agent's timers when idle, so the 15s poll / one-shot could
+    // skip a reminder's moment entirely. `.userInitiatedAllowingIdleSystemSleep`
+    // keeps the timers punctual but still lets the Mac sleep when idle.
+    private var activityToken: NSObjectProtocol?
 
     // A reminder fires if "now" is within this window past its scheduled instant
     // — so a just-launched app doesn't replay long-past reminders, and a brief
@@ -37,6 +42,10 @@ final class ReminderScheduler: ManagedService {
 
     func start() {
         active = true
+        activityToken = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep,
+            reason: "Deliver meeting reminders on time"
+        )
         // Don't replay reminders whose moment already passed before we started.
         primeAlreadyPassed(now: Date())
 
@@ -55,6 +64,8 @@ final class ReminderScheduler: ManagedService {
 
     func stop() {
         active = false
+        if let activityToken { ProcessInfo.processInfo.endActivity(activityToken) }
+        activityToken = nil
         cancellables.removeAll()
         pollTimer?.invalidate()
         pollTimer = nil
@@ -63,8 +74,12 @@ final class ReminderScheduler: ManagedService {
         fired.removeAll()
     }
 
-    private func leadID(_ meeting: MeetingEvent, _ lead: Int) -> String { "\(meeting.id)-\(lead)" }
-    private func startID(_ meeting: MeetingEvent) -> String { "\(meeting.id)-start" }
+    // Reminder identifiers include the meeting's start time, so rescheduling a
+    // meeting (same event id, new time) re-arms its reminders instead of staying
+    // suppressed by the flags fired for the old time.
+    private func slot(_ meeting: MeetingEvent) -> Int { Int(meeting.start.timeIntervalSince1970) }
+    private func leadID(_ meeting: MeetingEvent, _ lead: Int) -> String { "\(meeting.id)-\(slot(meeting))-\(lead)" }
+    private func startID(_ meeting: MeetingEvent) -> String { "\(meeting.id)-\(slot(meeting))-start" }
 
     /// Marks reminders that are no longer worth showing as "fired" so a launch
     /// doesn't replay them. An advance reminder is only suppressed once its
