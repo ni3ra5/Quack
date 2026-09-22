@@ -116,11 +116,22 @@ enum WindowMover {
     }
 
     /// Slides the window from `start` to `end`. Only the **position** is
-    /// animated; any size change is applied once up front. Animating size every
-    /// frame forces heavy apps to re-layout repeatedly, which is what made the
-    /// move look janky — a single resize plus a smooth glide is far smoother.
+    /// animated; any size change is applied once — never per frame. Animating
+    /// size every frame forces heavy apps to re-layout repeatedly, which is what
+    /// made the move look janky — a single resize plus a smooth glide is far
+    /// smoother.
+    ///
+    /// **Order matters when the window GROWS.** AppKit clamps a window to the
+    /// screen it currently sits on (`constrainFrameRect:toScreen:`), measuring
+    /// from its current origin — so a resize issued before the move is truncated
+    /// to whatever room is left to the right of / below that origin (asking for
+    /// 2560 wide at x = -130 on a display starting at -410 yielded 2280, and the
+    /// later move did NOT restore the lost width). So we shrink up front (a
+    /// smaller frame is never clamped) but grow only once the window has been
+    /// moved to the destination origin, and re-assert the origin afterwards.
     private static func animate(window: AXUIElement, from start: CGRect, to end: CGRect) {
         let resizes = abs(start.width - end.width) > 1 || abs(start.height - end.height) > 1
+        let grows = end.width > start.width + 1 || end.height > start.height + 1
         let dx = end.minX - start.minX
         let dy = end.minY - start.minY
 
@@ -130,7 +141,13 @@ enum WindowMover {
         // background thread the loop simply waits for each (possibly slow) set
         // to finish before the next — even pacing, no pile-up, main stays free.
         DispatchQueue.global(qos: .userInteractive).async {
-            if resizes { AXHelpers.setSize(end.size, of: window) }
+            // Take Chromium out of the loop for the duration (see AXHelpers).
+            let app = AXHelpers.application(of: window)
+            let hadEnhanced = app.flatMap { AXHelpers.enhancedUserInterface(of: $0) } ?? false
+            if hadEnhanced, let app { AXHelpers.setEnhancedUserInterface(false, of: app) }
+            defer { if hadEnhanced, let app { AXHelpers.setEnhancedUserInterface(true, of: app) } }
+
+            if resizes && !grows { AXHelpers.setSize(end.size, of: window) }
             let steps = 30
             let frameDuration = 0.20 / Double(steps)
             for i in 1...steps {
@@ -142,8 +159,36 @@ enum WindowMover {
                 )
                 Thread.sleep(forTimeInterval: frameDuration)
             }
+            // Settle: origin first (so a grow has the whole screen to grow
+            // into), then the size, then the origin again — resizing can nudge
+            // the window. Apps apply AX writes asynchronously, so verify and
+            // retry once if the size came back clamped.
+            settle(window: window, to: end, resizes: resizes)
+        }
+    }
+
+    /// Applies `end` as origin → size → origin, verifying after each pass and
+    /// retrying while the app hands back something else. Apps apply AX writes
+    /// asynchronously: a resize issued before the app has processed the move is
+    /// still clamped against the OLD origin, so one pass is not enough.
+    private static func settle(window: AXUIElement, to end: CGRect, resizes: Bool) {
+        var previous: CGSize?
+        for _ in 1...5 {
+            AXHelpers.setPosition(end.origin, of: window)
             if resizes { AXHelpers.setSize(end.size, of: window) }
             AXHelpers.setPosition(end.origin, of: window)
+
+            guard let actual = AXHelpers.frame(of: window) else { return }
+            let sized = abs(actual.width - end.width) <= 1 && abs(actual.height - end.height) <= 1
+            if sized, abs(actual.minX - end.minX) <= 1, abs(actual.minY - end.minY) <= 1 { return }
+            // The app refused to grow and is giving the same answer twice: that
+            // IS its maximum. Retrying only makes the window jitter.
+            if let previous, abs(previous.width - actual.width) <= 1, abs(previous.height - actual.height) <= 1 {
+                AXHelpers.setPosition(end.origin, of: window)
+                return
+            }
+            previous = actual.size
+            Thread.sleep(forTimeInterval: 0.06)
         }
     }
 }

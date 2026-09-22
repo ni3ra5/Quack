@@ -35,6 +35,26 @@ is individually switchable in `Sources/Quack/Windows/InputTaps.swift`.
 `.listenOnly` taps don't gate input (can't freeze), but use the same lifecycle
 for consistency.
 
+## ⚠️ Moving/resizing Chromium windows (Chrome, Claude, Electron)
+
+Chromium-based apps turn on `AXEnhancedUserInterface` as soon as an assistive
+client attaches. While it is on, Chromium handles `AXPosition`/`AXSize` itself:
+it animates them (the window visibly jitters) and clamps the result to its own,
+often stale, idea of the display work area — a fill on a 2560x1440 external came
+back as 2560x1326, and sometimes at the *built-in* screen's size. Native apps
+(Finder, Slack) are unaffected, which makes it look like a geometry bug.
+
+`WindowMover.animate` therefore, per move: turns `AXEnhancedUserInterface` off,
+applies the frame, turns it back on. Two more rules it relies on:
+
+- **Grow only after the move.** AppKit clamps a window to the screen it is
+  currently on, measured from its current origin, so a resize issued before the
+  move is truncated (2560 wide asked at x = -130 gave 2280) and the later move
+  does not restore it. Shrinks are safe to apply up front.
+- **Set origin → size → origin, verify, retry** — but stop as soon as the app
+  returns the same size twice; that is its real maximum and retrying only makes
+  the window jitter.
+
 ## Seeing changes / TCC
 
 - `swift build` only produces the dev binary. The **running app is the installed

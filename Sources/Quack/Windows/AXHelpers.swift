@@ -99,6 +99,34 @@ enum AXHelpers {
         }
     }
 
+    /// The application element owning `window`.
+    static func application(of window: AXUIElement) -> AXUIElement? {
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(window, &pid) == .success else { return nil }
+        return AXUIElementCreateApplication(pid)
+    }
+
+    /// Chromium/Electron apps (Chrome, Claude, VS Code, Slack's helper windows…)
+    /// turn on `AXEnhancedUserInterface` when an assistive client attaches. While
+    /// it is on, Chromium handles `AXSize`/`AXPosition` itself — animating them
+    /// and clamping the result to its own (often stale) idea of the display's
+    /// work area, which is why a fill on a large external monitor came back
+    /// short. Window managers (Rectangle, yabai) all work around it the same
+    /// way: turn it off, set the frame, turn it back on.
+    static func enhancedUserInterface(of app: AXUIElement) -> Bool? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, "AXEnhancedUserInterface" as CFString, &value) == .success,
+              let value, CFGetTypeID(value) == CFBooleanGetTypeID() else { return nil }
+        return (value as! CFBoolean) == kCFBooleanTrue
+    }
+
+    @discardableResult
+    static func setEnhancedUserInterface(_ enabled: Bool, of app: AXUIElement) -> Bool {
+        AXUIElementSetAttributeValue(
+            app, "AXEnhancedUserInterface" as CFString, enabled ? kCFBooleanTrue : kCFBooleanFalse
+        ) == .success
+    }
+
     // MARK: - Internals
 
     private static func role(of element: AXUIElement) -> String? {
