@@ -29,6 +29,8 @@ public struct QuackSettings: Codable, Equatable, Sendable {
     public var remindAtStart: Bool
     /// Show the temperature in Fahrenheit instead of Celsius.
     public var temperatureFahrenheit: Bool
+    /// Show Claude Code session dots under the notch.
+    public var claudeSessionsEnabled: Bool
 
     // MARK: Reminders
     /// Lead times (minutes before start) at which to fire a reminder.
@@ -71,6 +73,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         hideDuckIcon: Bool = false,
         remindAtStart: Bool = true,
         temperatureFahrenheit: Bool = false,
+        claudeSessionsEnabled: Bool = true,
         reminderLeadMinutes: [Int] = [10, 5],
         notificationSound: String = "quack",
         joinAlertSound: String = "quack",
@@ -97,6 +100,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         self.hideDuckIcon = hideDuckIcon
         self.remindAtStart = remindAtStart
         self.temperatureFahrenheit = temperatureFahrenheit
+        self.claudeSessionsEnabled = claudeSessionsEnabled
         self.reminderLeadMinutes = reminderLeadMinutes
         self.notificationSound = notificationSound
         self.joinAlertSound = joinAlertSound
@@ -136,6 +140,7 @@ public struct QuackSettings: Codable, Equatable, Sendable {
         hideDuckIcon = v(.hideDuckIcon, d.hideDuckIcon)
         remindAtStart = v(.remindAtStart, d.remindAtStart)
         temperatureFahrenheit = v(.temperatureFahrenheit, d.temperatureFahrenheit)
+        claudeSessionsEnabled = v(.claudeSessionsEnabled, d.claudeSessionsEnabled)
         reminderLeadMinutes = v(.reminderLeadMinutes, d.reminderLeadMinutes)
         notificationSound = v(.notificationSound, d.notificationSound)
         joinAlertSound = v(.joinAlertSound, d.joinAlertSound)

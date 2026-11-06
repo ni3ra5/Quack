@@ -3,7 +3,7 @@ import QuackKit
 
 /// The feature groups shown as tabs in the settings window.
 enum SettingsTab: String, CaseIterable {
-    case general, calendar, display, temperature, windows, permissions
+    case general, calendar, display, temperature, windows, claude, permissions
 
     var title: String {
         switch self {
@@ -12,6 +12,7 @@ enum SettingsTab: String, CaseIterable {
         case .display: return "Display"
         case .temperature: return "CPU"
         case .windows: return "Windows"
+        case .claude: return "Claude"
         case .permissions: return "Permissions"
         }
     }
@@ -23,9 +24,25 @@ enum SettingsTab: String, CaseIterable {
         case .display: return "sun.max"
         case .temperature: return "thermometer.medium"
         case .windows: return "macwindow.on.rectangle"
+        case .claude: return "asterisk"   // fallback; see `image`
         case .permissions: return "lock.shield"
         }
     }
+
+    /// The tab's sidebar/header icon. Claude uses the Claude app's own
+    /// monochrome menu-bar icon when the app is installed.
+    var image: Image {
+        if self == .claude, let img = Self.claudeIcon { return Image(nsImage: img) }
+        return Image(systemName: icon)
+    }
+
+    private static let claudeIcon: NSImage? = {
+        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.anthropic.claudefordesktop"),
+              let img = Bundle(url: app)?.image(forResource: "TrayIconTemplate") else { return nil }
+        img.isTemplate = true
+        img.size = NSSize(width: 16, height: 16)
+        return img
+    }()
 }
 
 /// The whole settings window: a dark left sidebar (workspace header + nav) and
@@ -95,7 +112,7 @@ struct SettingsRootView: View {
         let selected = env.settingsTab == item
         return Button { env.settingsTab = item } label: {
             HStack(spacing: 13) {
-                Image(systemName: item.icon).font(.system(size: 15)).frame(width: 22)
+                item.image.font(.system(size: 15)).frame(width: 22)
                 Text(item.title).font(.system(size: 14, weight: selected ? .semibold : .regular))
                 Spacer(minLength: 0)
             }
@@ -113,7 +130,7 @@ struct SettingsRootView: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                Image(systemName: env.settingsTab.icon)
+                env.settingsTab.image
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 34, height: 34)
@@ -158,6 +175,8 @@ struct SettingsPane: View {
                 WindowSwipeSection()
                 DockGesturesSection()
                 KeyboardShortcutsSection()
+            case .claude:
+                ClaudeSessionsSection()
             case .permissions:
                 PermissionsSection()
                 StatusSection()
@@ -526,6 +545,52 @@ private struct DisplayRow: View {
             get: { env.settingsStore.settings.displayBrightness[display.id] ?? 0.8 },
             set: { env.applyBrightness($0, to: display) }
         )
+    }
+}
+
+// MARK: - Claude sessions
+
+private struct ClaudeSessionsSection: View {
+    @EnvironmentObject var env: AppEnvironment
+
+    var body: some View {
+        let s = env.settingsStore
+        let m = env.claudeSessions
+        Section("Claude sessions") {
+            Toggle("Show Claude sessions under the notch", isOn: s.binding(\.claudeSessionsEnabled))
+            Text("One dot per running Claude Code session (Claude app, VS Code, terminal). Red: needs you. Yellow: done. Blinking blue: working. Click the notch to see the list and remove sessions.")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+        }
+        if s.settings.claudeSessionsEnabled {
+            Section("Needs-you detection") {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(m.hooksInstalled ? "Claude Code hook installed" : "Claude Code hook not installed")
+                        Text("Needed to spot permission prompts and questions. Adds a small hook to ~/.claude/settings.json (a backup is saved next to it). New sessions pick it up.")
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Button(m.hooksInstalled ? "Remove" : "Install") { m.setHooksInstalled(!m.hooksInstalled) }
+                }
+                if let err = m.hookError {
+                    Text(err).font(.system(size: 12)).foregroundStyle(.red)
+                }
+            }
+            Section("Running now") {
+                if m.sessions.isEmpty {
+                    Text("No Claude sessions running.").foregroundStyle(.secondary)
+                }
+                ForEach(m.sessions) { session in
+                    HStack {
+                        Text(session.name).lineLimit(1)
+                        Spacer()
+                        Text("\(session.source.label) · \(String(describing: session.state))")
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
     }
 }
 

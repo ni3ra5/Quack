@@ -37,6 +37,7 @@ final class AppEnvironment: ObservableObject {
     private let hotkeyService: HotkeyMonitor
     private let dockPinchService: DockPinchMonitor
     private let temperatureService: TemperatureStatusItem
+    let claudeSessions = ClaudeSessionMonitor()
 
     private let coordinator: AppCoordinator
     private var cancellables: Set<AnyCancellable> = []
@@ -79,6 +80,7 @@ final class AppEnvironment: ObservableObject {
             .windowShortcuts: hotkeyService,
             .dockPinch: dockPinchService,
             .temperature: temperatureService,
+            .claudeSessions: claudeSessions,
         ]
         self.coordinator = AppCoordinator(store: settings, services: services)
         temperatureService.onOpenSettings = { [weak self] in self?.showSettings(selecting: .temperature) }
@@ -90,6 +92,7 @@ final class AppEnvironment: ObservableObject {
         permissions.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
         brightness.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
         diagnostics.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
+        claudeSessions.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &cancellables)
 
         permissions.refreshAll()
         coordinator.activate()
